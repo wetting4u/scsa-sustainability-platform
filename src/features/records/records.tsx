@@ -8,6 +8,9 @@ import {
   type Resource,
   type UsageRecord,
 } from "./domain";
+import { RecordForm } from "./components/record-form";
+import { RecordTable } from "./components/record-table";
+
 export function Records() {
   const { records, setRecords } = useDemo();
   const [filter, setFilter] = useState("all");
@@ -54,135 +57,56 @@ export function Records() {
         {message}
       </div>
       {show && (
-        <section className="panel form-panel">
-          <div className="section-title">
-            <h2>{editing ? "Edit usage record" : "Log household usage"}</h2>
-            <button
-              className="icon-button"
-              aria-label="Close record form"
-              onClick={() => setShow(false)}
-            >
-              <Icon name="close" />
-            </button>
-          </div>
-          <p>
-            Enter the amount used during a period, not a cumulative meter
-            reading.
-          </p>
-          <form
-            key={editing?.id || "new"}
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              const record = {
-                resource,
-                start: String(f.get("start")),
-                end: String(f.get("end")),
-                amount: Number(f.get("amount")),
-              };
-              const invalid = validateRecord(record);
-              if (invalid) {
-                setError(invalid);
-                return;
-              }
-              if (
-                records.some(
-                  (r) =>
-                    r.id !== editing?.id &&
-                    r.resource === resource &&
-                    r.start <= record.end &&
-                    r.end >= record.start,
-                )
-              ) {
-                setError(
-                  "This period overlaps an existing record for this resource. Edit the existing record or choose another period.",
-                );
-                return;
-              }
-              if (editing)
-                setRecords(
-                  records.map((r) =>
-                    r.id === editing.id ? { ...record, id: r.id } : r,
-                  ),
-                );
-              else
-                setRecords([
-                  ...records,
-                  { ...record, id: crypto.randomUUID() },
-                ]);
-              setShow(false);
-              setMessage(
-                editing
-                  ? "Record updated. Your summary is up to date."
-                  : "Record added. Your summary is up to date.",
+        <RecordForm
+          editing={editing}
+          resource={resource}
+          setResource={setResource}
+          error={error}
+          onClose={() => setShow(false)}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            const record = {
+              resource,
+              start: String(f.get("start")),
+              end: String(f.get("end")),
+              amount: Number(f.get("amount")),
+            };
+            const invalid = validateRecord(record);
+            if (invalid) {
+              setError(invalid);
+              return;
+            }
+            if (
+              records.some(
+                (r) =>
+                  r.id !== editing?.id &&
+                  r.resource === resource &&
+                  r.start <= record.end &&
+                  r.end >= record.start,
+              )
+            ) {
+              setError(
+                "This period overlaps an existing record for this resource. Edit the existing record or choose another period.",
               );
-            }}
-          >
-            <div className="form-grid">
-              <label>
-                Resource
-                <select
-                  value={resource}
-                  onChange={(e) => setResource(e.target.value as Resource)}
-                >
-                  {Object.entries(resources).map(([k, v]) => (
-                    <option value={k} key={k}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Amount used ({resources[resource].unit})
-                <input
-                  name="amount"
-                  type="number"
-                  required
-                  min="0"
-                  max={resources[resource].max}
-                  step="0.01"
-                  defaultValue={editing?.amount}
-                  placeholder="0.00"
-                />
-              </label>
-              <label>
-                Period start
-                <input
-                  name="start"
-                  type="date"
-                  required
-                  defaultValue={editing?.start || "2026-09-15"}
-                />
-              </label>
-              <label>
-                Period end
-                <input
-                  name="end"
-                  type="date"
-                  required
-                  defaultValue={editing?.end || "2026-09-21"}
-                />
-              </label>
-            </div>
-            {error && (
-              <p className="error" role="alert">
-                {error}
-              </p>
-            )}
-            <div className="form-actions">
-              <button className="button primary" type="submit">
-                {editing ? "Save changes" : "Save record"}
-              </button>
-              <button
-                className="button secondary"
-                type="button"
-                onClick={() => setShow(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </section>
+              return;
+            }
+            if (editing)
+              setRecords(
+                records.map((r) =>
+                  r.id === editing.id ? { ...record, id: r.id } : r,
+                ),
+              );
+            else
+              setRecords([...records, { ...record, id: crypto.randomUUID() }]);
+            setShow(false);
+            setMessage(
+              editing
+                ? "Record updated. Your summary is up to date."
+                : "Record added. Your summary is up to date.",
+            );
+          }}
+        />
       )}
       <section className="panel">
         <div className="section-title">
@@ -203,77 +127,17 @@ export function Records() {
           </label>
         </div>
         {visible.length ? (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Resource</th>
-                  <th>Period</th>
-                  <th>Usage</th>
-                  <th>Source</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <span className={`tag ${r.resource}`}>
-                        {resources[r.resource].label}
-                      </span>
-                    </td>
-                    <td>
-                      {r.start} <span className="muted">to</span> {r.end}
-                    </td>
-                    <td>
-                      <strong>{r.amount.toLocaleString()}</strong>{" "}
-                      {resources[r.resource].unit}
-                    </td>
-                    <td>
-                      <span className="muted">Manual entry</span>
-                    </td>
-                    <td>
-                      <div className="row-actions">
-                        <button
-                          className="icon-button"
-                          aria-label={`Edit ${resources[r.resource].label} ${r.start}`}
-                          onClick={() => open(r)}
-                        >
-                          <Icon name="edit" size={17} />
-                        </button>
-                        <button
-                          className="icon-button"
-                          aria-label={`Delete ${resources[r.resource].label} ${r.start}`}
-                          onClick={() => setDeleting(r.id)}
-                        >
-                          <Icon name="delete" size={17} />
-                        </button>
-                        {deleting === r.id && (
-                          <span className="delete-confirm">
-                            Delete?
-                            <button
-                              onClick={() => {
-                                setRecords(
-                                  records.filter((x) => x.id !== r.id),
-                                );
-                                setDeleting(null);
-                                setMessage("Record deleted.");
-                              }}
-                            >
-                              Yes
-                            </button>
-                            <button onClick={() => setDeleting(null)}>
-                              Cancel
-                            </button>
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <RecordTable
+            visible={visible}
+            open={open}
+            deleting={deleting}
+            setDeleting={setDeleting}
+            onDelete={(id) => {
+              setRecords(records.filter((record) => record.id !== id));
+              setDeleting(null);
+              setMessage("Record deleted.");
+            }}
+          />
         ) : (
           <Empty>No records yet. Add your first household usage entry.</Empty>
         )}

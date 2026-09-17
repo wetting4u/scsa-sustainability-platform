@@ -1,69 +1,70 @@
-# SCSA sustainability prototype
+# SCSA 家庭永续平台原型
 
-An English-language, login-free Next.js App Router + React + TypeScript + Tailwind prototype. Open `/` to start the dashboard. No database, account, environment variables or Supabase setup is required.
+使用 Next.js App Router、React、TypeScript 和普通 CSS。打开首页会跳转到 `/overview`，
+目前免登录展示水、电、垃圾的家庭仪表板。无需数据库或环境变量就能运行。
 
-## Run in VS Code
+## 在 VS Code 运行
 
-Install Node.js 22.13+ (including npm), open this folder, then open Terminal → New Terminal:
+安装 Node.js 22.13+（包含 npm），打开项目终端：
 
 ```sh
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000. Stop with Ctrl+C. If npm is not recognised, install Node.js with npm and restart VS Code. PowerShell users blocked by script execution policy can use `npm.cmd` instead of `npm`.
+浏览器打开 http://localhost:3000，停止时按 Ctrl+C。
+如果 PowerShell 阻止 npm 脚本，使用 Command Prompt 终端或 npm.cmd。
+项目维护 pnpm-lock.yaml；团队若统一采用 pnpm，可使用 `pnpm install --frozen-lockfile` 和 `pnpm dev`，避免同时维护两套锁文件。
 
-If dependencies are already installed and `node` works but `npm` is unavailable, you can start directly with `node node_modules/next/dist/bin/next dev`.
+## 演示流程
 
-This repository includes a pnpm lockfile. For reproducible team installs, use pnpm with `pnpm install --frozen-lockfile` and `pnpm dev`. The npm commands above are an alternative; agree on one package manager before team integration.
+1. Overview 显示固定在 2026 年 9 月的假数据。
+2. 在 My records 新增 9 月 15–21 日电量 50 kWh，回到 Overview，电量从 122 变成 172 kWh。
+3. 可以筛选、编辑、删除记录，新增目标，加入或退出挑战。
+4. Settings & privacy 的两个隐私开关独立，默认关闭。
+5. 页面间导航保留内存修改；刷新或 Reset demo 恢复原始假数据。
 
-## Demo walkthrough
+## 架构与交接
 
-1. Open Overview: September 2026 sample household data.
-2. Choose Log usage. Enter electricity, 50 kWh, 15–21 September 2026.
-3. Save and return to Overview: electricity total changes from 122 to 172 kWh; the weekly chart and goal usage change too.
-4. Filter, edit or delete a record in My records.
-5. Create a usage-limit goal; explore and join a challenge.
-6. Open Settings & privacy: the two independent preferences start off. They affect only in-memory UI state.
-7. Refresh the browser or select Reset demo to restore the sample data.
+- [架构和六人分工](docs/architecture.md)
+- [API 接口约定](docs/api-contracts.md)
+- [Supabase 建表及接入步骤](docs/database.md)
+- [原始 SQL 评审与新旧字段对照](docs/schema-review.md)
 
-## Architecture and handoff
+现有页面位于 `src/app/(household)`。`(public)` 目前只有首页跳转。
+Admin 规划为独立 `src/app/admin`，当前没有管理页面、管理员 API 或登录流程。
+Records 表单和表格已拆到 `src/features/records/components/`。
+RWD 沿用 `globals.css` 的 Grid、Flexbox 和 media queries，新元件独立样式可用 CSS Modules。
 
-### Route groups
+## 数据库状态
 
-- `src/app/layout.tsx`: global HTML/body, metadata and CSS only.
-- `src/app/(public)/page.tsx`: `/` temporarily redirects to `/overview`. Replace this with a landing page later; future sign-in/sign-up pages belong in this group.
-- `src/app/(household)/layout.tsx`: owns `DemoProvider` and `Shell`, preserving demo state between household pages.
-- `src/app/(household)/overview/page.tsx`: dashboard at `/overview`.
-- Other household routes remain `/records`, `/goals`, `/challenges`, `/community` and `/settings`.
-- Parenthesised folders organise routes and do not appear in URLs or provide authentication. No login or admin endpoints are implemented yet. Future admin routes can live under `src/app/admin/` with a separate layout and server-side authorization.
-- Responsive styling currently uses CSS Grid/Flexbox and media queries in `src/app/globals.css`; Tailwind is available but most existing styles are custom CSS.
+原始 SQLite 文件保存在 `database/legacy-sqlite/`。
+新版 Supabase PostgreSQL schema 位于 `supabase/migrations/20260917000100_initial_schema.sql`，
+用于全新开发项目，含 9 张业务表、Auth 用户初始化、日期/数值/重叠约束、列级授权与 RLS。
+`supabase/seed.sql` 只提供可选开发挑战和徽章，没有真实账号或用量。
 
-- `src/app`: route composition, root layout and styling.
-- `src/components`: shared UI and responsive navigation.
-- `src/features`: dashboard, records, goals, challenges, community and privacy modules.
-- `src/features/demo/provider.tsx`: shared in-memory state across client navigation.
-- `src/features/records/domain.ts`: resource units, period totals and demo validation.
-- `src/mocks/data.ts`: consistent fixtures. Dates deliberately fixed for repeatable demonstrations.
-- `tests/domain.test.ts`: validation and resource/period aggregation checks.
+尚未在云端执行，也没有接通真实数据。`/api/records` 及其记录子路由目前返回 501。
+填写 `.env.local` 或执行 migration 不会自动切换演示模式。
+数据库类型、repository、登录和正式管理功能属于下一阶段。
 
-## Checks
+## 检查
 
 ```sh
 npm run test
+npm run test:db
 npm run typecheck
 npm run build
 ```
 
-## Deliberate prototype boundaries
+`test:db` 使用 PGlite 在本机运行 PostgreSQL migration 和权限测试，不连接云端。
+仍需要在真实 Supabase 开发项目验收 Auth、PostgREST 和 RLS。
 
-- No login, database, server mutations, RLS, data transmission or persistent browser storage. Database choice is pending team discussion; Supabase is not a dependency.
-- Client validation is demonstration-only. Add authentication, server validation, ownership checks and database constraints before real data entry.
-- Water (L), electricity (kWh) and waste (kg) only. Eco-actions are deferred.
-- Entries contain period consumption, not cumulative meter readings. Same-resource overlapping periods are rejected to avoid double counting. Demo maximum ranges require domain review.
-- Monthly/goal summaries count only records entirely within the selected period; weekly charts do the same per week. Cross-boundary records are not prorated. Empty chart buckets are not confirmed zero consumption.
-- Goals show usage against a limit, not verified savings. Challenge completion and environmental benefits are not automatically certified.
-- Community numbers, tip and challenge/badge conditions are illustrative. No leaderboard is published. Staff reporting, consent enforcement and small-cohort suppression remain future work.
-- Accessibility foundation includes labelled inputs, keyboard focus, skip navigation, text chart summaries and responsive layouts. Formal WCAG audit remains part of later acceptance testing.
+## 当前范围
 
-Framework setup follows the [Next.js installation documentation](https://nextjs.org/docs/app/getting-started/installation).
+- 只支持水（L）、电（kWh）、垃圾（kg）；公共交通和其他 eco-action 后续扩展。
+- 记录的是区间用量，不是累计表读数；同资源的重叠区间不能重复记录。
+- 月度、周度及目标统计只包含完整落在查询窗口内的记录，不按天摊分。
+- 目标显示用量占上限比例，不能把缺少记录当作节约或完成。
+- 挑战完成、徽章颁发、建议、社区数字均未形成真实认证或报告功能。
+- 两个隐私开关当前只演示 UI 偏好。真实接入需要服务端验证、认证、RLS 和同意管理。
+- 现有可访问性基础包括标签、键盘焦点和响应式布局，仍需正式 WCAG 2.2 AA 验收。
