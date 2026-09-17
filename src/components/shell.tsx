@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Icon, type icons } from "./ui";
 import { useDemo } from "@/features/demo/provider";
 const links: { href: string; label: string; icon: keyof typeof icons }[] = [
-  { href: "/", label: "Overview", icon: "dashboard" },
+  { href: "/overview", label: "Overview", icon: "dashboard" },
   { href: "/records", label: "My records", icon: "records" },
   { href: "/goals", label: "Goals", icon: "goals" },
   { href: "/challenges", label: "Challenges", icon: "challenges" },
@@ -21,7 +21,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       <aside className={`sidebar ${open ? "is-open" : ""}`}>
-        <Link className="brand" href="/" aria-label="SCSA home">
+        <Link className="brand" href="/overview" aria-label="SCSA home">
           <span className="brand-mark">
             <Icon name="sprout" size={29} />
           </span>

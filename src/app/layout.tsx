@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { DemoProvider } from "@/features/demo/provider";
-import { Shell } from "@/components/shell";
 import "./globals.css";
 export const metadata: Metadata = {
   title: "SCSA | Small steps. Shared future.",
@@ -14,11 +12,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en-AU">
-      <body>
-        <DemoProvider>
-          <Shell>{children}</Shell>
-        </DemoProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

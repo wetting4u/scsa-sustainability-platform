@@ -29,6 +29,16 @@ This repository includes a pnpm lockfile. For reproducible team installs, use pn
 
 ## Architecture and handoff
 
+### Route groups
+
+- `src/app/layout.tsx`: global HTML/body, metadata and CSS only.
+- `src/app/(public)/page.tsx`: `/` temporarily redirects to `/overview`. Replace this with a landing page later; future sign-in/sign-up pages belong in this group.
+- `src/app/(household)/layout.tsx`: owns `DemoProvider` and `Shell`, preserving demo state between household pages.
+- `src/app/(household)/overview/page.tsx`: dashboard at `/overview`.
+- Other household routes remain `/records`, `/goals`, `/challenges`, `/community` and `/settings`.
+- Parenthesised folders organise routes and do not appear in URLs or provide authentication. No login or admin endpoints are implemented yet. Future admin routes can live under `src/app/admin/` with a separate layout and server-side authorization.
+- Responsive styling currently uses CSS Grid/Flexbox and media queries in `src/app/globals.css`; Tailwind is available but most existing styles are custom CSS.
+
 - `src/app`: route composition, root layout and styling.
 - `src/components`: shared UI and responsive navigation.
 - `src/features`: dashboard, records, goals, challenges, community and privacy modules.
