@@ -1,13 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Icon, PageHeading, Empty } from "@/components/ui";
-import { useDemo } from "@/features/demo/provider";
 import {
   resources,
-  totalFor,
   type Goal,
   type Resource,
 } from "@/features/records/domain";
+import { createClient } from "@/lib/supabase/client";
 export function GoalCard({
   goal,
   compact = false,
@@ -15,9 +14,43 @@ export function GoalCard({
   goal: Goal;
   compact?: boolean;
 }) {
-  const { records } = useDemo();
-  const total = totalFor(records, goal.resource, goal.start, goal.end);
-  const percent = Math.round((total / goal.target) * 100);
+  const [total, setTotal] = useState(0);
+
+useEffect(() => {
+  async function loadGoalUsage() {
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("usage_records")
+      .select("amount")
+      .eq("user_id", user.id)
+      .eq("resource", goal.resource)
+      .gte("start_date", goal.start)
+      .lte("end_date", goal.end);
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const recordedTotal = (data ?? []).reduce(
+      (sum, record) => sum + Number(record.amount),
+      0,
+    );
+
+    setTotal(recordedTotal);
+  }
+
+  void loadGoalUsage();
+}, [goal.resource, goal.start, goal.end]);
+
+const percent = Math.round((total / goal.target) * 100);
   return (
     <article className={compact ? "goal-card compact" : "panel goal-card"}>
       <div className="goal-meta">
@@ -58,9 +91,122 @@ export function GoalCard({
   );
 }
 export function Goals() {
-  const { goals, setGoals } = useDemo();
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadGoals() {
+      const supabase = createClient();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data, error: loadError } = await supabase
+        .from("goals")
+        .select("id, title, resource, target, start_date, end_date")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (loadError) {
+        console.error(loadError);
+        setLoading(false);
+        return;
+      }
+
+      setGoals(
+        (data ?? []).map((goal) => ({
+          id: goal.id,
+          title: goal.title,
+          resource: goal.resource as Resource,
+          target: Number(goal.target),
+          start: goal.start_date,
+          end: goal.end_date,
+        })),
+      );
+
+      setLoading(false);
+    }
+
+    void loadGoals();
+  }, []);
+  async function handleGoalSubmit(event: FormEvent<HTMLFormElement>) {
+  event.preventDefault();
+
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+
+  const target = Number(formData.get("target"));
+  const start = String(formData.get("start"));
+  const end = String(formData.get("end"));
+  const title = String(formData.get("title")).trim();
+  const resource = formData.get("resource") as Resource;
+
+  if (
+    !title ||
+    !Number.isFinite(target) ||
+    target <= 0 ||
+    target > resources[resource].max ||
+    end < start
+  ) {
+    setError(
+      "Enter a title, a positive target within the allowed range, and a valid date period.",
+    );
+    return;
+  }
+
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    setError("Please sign in again.");
+    return;
+  }
+
+  const { data, error: insertError } = await supabase
+    .from("goals")
+    .insert({
+      user_id: user.id,
+      title,
+      resource,
+      target,
+      start_date: start,
+      end_date: end,
+    })
+    .select("id, title, resource, target, start_date, end_date")
+    .single();
+
+  if (insertError) {
+    setError(insertError.message);
+    return;
+  }
+
+  setGoals((currentGoals) => [
+    {
+      id: data.id,
+      title: data.title,
+      resource: data.resource as Resource,
+      target: Number(data.target),
+      start: data.start_date,
+      end: data.end_date,
+    },
+    ...currentGoals,
+  ]);
+
+  form.reset();
+  setShow(false);
+  setError("");
+}
   return (
     <>
       <PageHeading
@@ -82,42 +228,7 @@ export function Goals() {
       {show && (
         <section className="panel form-panel">
           <h2>Create a household goal</h2>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              const target = Number(f.get("target"));
-              const start = String(f.get("start"));
-              const end = String(f.get("end"));
-              const title = String(f.get("title")).trim();
-              const resource = f.get("resource") as Resource;
-              if (
-                !title ||
-                !Number.isFinite(target) ||
-                target <= 0 ||
-                target > resources[resource].max ||
-                end < start
-              ) {
-                setError(
-                  "Enter a title, a positive target within the demo range, and a valid date period.",
-                );
-                return;
-              }
-              setGoals([
-                ...goals,
-                {
-                  id: crypto.randomUUID(),
-                  title,
-                  resource,
-                  target,
-                  start,
-                  end,
-                },
-              ]);
-              setShow(false);
-              setError("");
-            }}
-          >
+          <form onSubmit={handleGoalSubmit}>
             <div className="form-grid">
               <label>
                 Goal name
@@ -196,7 +307,11 @@ export function Goals() {
           <GoalCard goal={g} key={g.id} />
         ))}
       </div>
-      {!goals.length && <Empty>Your next small step starts with a goal.</Empty>}
+      {loading ? (
+        <p>Loading goals...</p>
+      ) : (
+        !goals.length && <Empty>Your next small step starts with a goal.</Empty>
+      )}
     </>
   );
 }

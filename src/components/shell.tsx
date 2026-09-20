@@ -3,7 +3,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Icon, type icons } from "./ui";
-import { useDemo } from "@/features/demo/provider";
+
+import { createClient } from "@/lib/supabase/client";
 const links: { href: string; label: string; icon: keyof typeof icons }[] = [
   { href: "/overview", label: "Overview", icon: "dashboard" },
   { href: "/records", label: "My records", icon: "records" },
@@ -11,10 +12,30 @@ const links: { href: string; label: string; icon: keyof typeof icons }[] = [
   { href: "/challenges", label: "Challenges", icon: "challenges" },
   { href: "/community", label: "Community", icon: "community" },
 ];
-export function Shell({ children }: { children: React.ReactNode }) {
+
+export function Shell({
+  children,
+  householdName,
+}: {
+  children: React.ReactNode;
+  householdName: string;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const { household } = useDemo();
+  const initials =
+  householdName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase() || "MH";
+  async function handleSignOut() {
+  const supabase = createClient();
+  await supabase.auth.signOut();
+  window.location.href = "/sign-in";
+}
+
   return (
     <>
       <a className="skip-link" href="#main">
@@ -85,17 +106,25 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="topbar-right">
             <span className="demo-pill">
-              <span /> Demo mode
+              <span /> Account connected
             </span>
-            <span className="avatar">GG</span>
-            <span className="household-name">{household}</span>
+            <span className="avatar">{initials}</span>
+            <span className="household-name">{householdName}</span>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={handleSignOut}
+              style={{ padding: "8px 12px" }}
+            >
+              Sign out
+            </button>
           </div>
         </header>
         <main id="main" tabIndex={-1}>
           {children}
           <footer className="page-footer">
             <span>Growing a more sustainable South Australia, together.</span>
-            <span>Prototype · Sample data · No account required</span>
+            <span>Prototype · Sample sustainability data · Account protected</span>
           </footer>
         </main>
       </div>

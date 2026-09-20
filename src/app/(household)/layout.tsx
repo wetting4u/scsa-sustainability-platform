@@ -1,13 +1,34 @@
 import type { ReactNode } from "react";
-import { DemoProvider } from "@/features/demo/provider";
-import { Shell } from "@/components/shell";
+import { redirect } from "next/navigation";
 
-// Shared across household routes, so client navigation preserves demo state.
-// This layout is presentation only; it does not enforce authentication.
-export default function HouseholdLayout({ children }: { children: ReactNode }) {
+import { Shell } from "@/components/shell";
+import { createClient } from "@/lib/supabase/server";
+
+export default async function HouseholdLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/sign-in");
+  }
+  const { data: profile } = await supabase
+  .from("household_profiles")
+  .select("display_name")
+  .eq("user_id", user.id)
+  .maybeSingle();
+
+const householdName = profile?.display_name ?? "My household";
+
   return (
-    <DemoProvider>
-      <Shell>{children}</Shell>
-    </DemoProvider>
-  );
+  <Shell householdName={householdName}>
+    {children}
+  </Shell>
+);
 }

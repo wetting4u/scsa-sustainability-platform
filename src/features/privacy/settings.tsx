@@ -1,18 +1,129 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { Icon, PageHeading } from "@/components/ui";
-import { useDemo } from "@/features/demo/provider";
 export function Settings() {
-  const {
-    analytics,
-    setAnalytics,
-    leaderboard,
-    setLeaderboard,
-    household,
-    setHousehold,
-    reset,
-  } = useDemo();
+const [analytics, setAnalytics] = useState(false);
+const [leaderboard, setLeaderboard] = useState(false);
+const [household, setHousehold] = useState("");
   const [message, setMessage] = useState("");
+  const router = useRouter();
+const [saving, setSaving] = useState(false);
+const [savingPrivacy, setSavingPrivacy] = useState(false);
+
+useEffect(() => {
+  async function loadProfile() {
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("household_profiles")
+      .select("display_name, share_analytics, display_leaderboard")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+      if (data) {
+        if (data.display_name) {
+          setHousehold(data.display_name);
+        }
+
+        setAnalytics(Boolean(data.share_analytics));
+        setLeaderboard(Boolean(data.display_leaderboard));
+      }
+  }
+
+  void loadProfile();
+}, [setAnalytics, setHousehold, setLeaderboard]);
+
+async function handleProfileSubmit(
+  event: FormEvent<HTMLFormElement>,
+) {
+  event.preventDefault();
+
+  const value = String(
+    new FormData(event.currentTarget).get("household"),
+  ).trim();
+
+  if (!value) {
+    setMessage("Please enter a household name.");
+    return;
+  }
+
+  setSaving(true);
+  setMessage("");
+
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    setMessage("Please sign in again.");
+    setSaving(false);
+    return;
+  }
+
+  const { error } = await supabase
+    .from("household_profiles")
+    .update({ display_name: value })
+    .eq("user_id", user.id);
+
+  if (error) {
+    setMessage(error.message);
+  } else {
+    setHousehold(value);
+    setMessage("Household profile updated.");
+    router.refresh();
+  }
+
+  setSaving(false);
+}
+async function updatePrivacyPreference(
+  field: "share_analytics" | "display_leaderboard",
+  value: boolean,
+) {
+  setSavingPrivacy(true);
+  setMessage("");
+
+  const supabase = createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    setMessage("Please sign in again.");
+    setSavingPrivacy(false);
+    return;
+  }
+
+  const { error } = await supabase
+    .from("household_profiles")
+    .update({ [field]: value })
+    .eq("user_id", user.id);
+
+  if (error) {
+    setMessage(error.message);
+  } else {
+    if (field === "share_analytics") {
+      setAnalytics(value);
+    } else {
+      setLeaderboard(value);
+    }
+
+    setMessage("Privacy preference updated.");
+  }
+
+  setSavingPrivacy(false);
+}
+
   return (
     <>
       <PageHeading
@@ -22,26 +133,14 @@ export function Settings() {
       />
       <div className="notice">
         <Icon name="shield" />
-        These are demonstration preferences. No authentication, backend privacy
-        enforcement or data sharing is active.
+          Your household profile and privacy preferences are securely saved to your account.
       </div>
       <div className="settings-grid">
         <section className="panel">
           <h2>Household profile</h2>
           <p>A friendly name for your personal dashboard.</p>
           <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const value = String(
-                new FormData(e.currentTarget).get("household"),
-              ).trim();
-              if (!value) {
-                setMessage("Please enter a household name.");
-                return;
-              }
-              setHousehold(value);
-              setMessage("Household profile updated for this demo.");
-            }}
+            onSubmit={handleProfileSubmit}
           >
             <label>
               Household name
@@ -54,11 +153,14 @@ export function Settings() {
               />
             </label>
             <p className="caption">
-              No address or personal details are needed to explore the
-              prototype.
+              You can update this name at any time. No address or personal details are required.
             </p>
-            <button className="button primary" type="submit">
-              Save profile
+            <button
+              className="button primary"
+              type="submit"
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save profile"}
             </button>
           </form>
         </section>
@@ -80,7 +182,12 @@ export function Settings() {
               aria-checked={analytics}
               aria-label="Include my data in community reports"
               className={`toggle ${analytics ? "on" : ""}`}
-              onClick={() => setAnalytics(!analytics)}
+              type="button"
+              disabled={savingPrivacy}
+              onClick={() =>
+                void updatePrivacyPreference("share_analytics", !analytics)
+              }
+              
             >
               <span />
             </button>
@@ -98,7 +205,14 @@ export function Settings() {
               aria-checked={leaderboard}
               aria-label="Show my pseudonym on the leaderboard"
               className={`toggle ${leaderboard ? "on" : ""}`}
-              onClick={() => setLeaderboard(!leaderboard)}
+              type="button"
+              disabled={savingPrivacy}
+              onClick={() =>
+                void updatePrivacyPreference(
+                  "display_leaderboard",
+                  !leaderboard,
+                )
+              }
             >
               <span />
             </button>
@@ -113,24 +227,6 @@ export function Settings() {
           </div>
         </section>
       </div>
-      <section className="panel reset-panel">
-        <div>
-          <h2>A fresh start for your next demo</h2>
-          <p>
-            Restore sample records, goals, challenges and default privacy
-            preferences.
-          </p>
-        </div>
-        <button
-          className="button secondary"
-          onClick={() => {
-            reset();
-            setMessage("Demo reset to its original sample data.");
-          }}
-        >
-          Reset demo
-        </button>
-      </section>
       <p role="status" className={message ? "success" : ""}>
         {message}
       </p>
