@@ -16,6 +16,25 @@ npm run dev
 如果 PowerShell 阻止 npm 脚本，使用 Command Prompt 终端或 npm.cmd。
 项目维护 pnpm-lock.yaml；团队若统一采用 pnpm，可使用 `pnpm install --frozen-lockfile` 和 `pnpm dev`，避免同时维护两套锁文件。
 
+## Python 认证服务（BE-01）
+
+注册、登录、邮箱验证码校验和重发验证码由 `backend/auth/` 中的 Python 服务处理。Next.js 的四个 `/api/auth/*` 路由只转发请求，并在登录成功后保存 Supabase 会话；前端 `src/features/auth/client.ts` 的调用地址保持不变。
+
+将 `.env.example` 复制为 `.env.local`，填写 Supabase URL、publishable key 和一个只供 Next.js 与 Python 服务共用的长随机 `AUTH_INTERNAL_TOKEN`。本地 `AUTH_SERVICE_URL` 使用默认的 `http://127.0.0.1:8000`。不要把 `.env.local` 提交到 Git。Supabase 项目还需要启用邮箱确认，并把 Confirm sign up 邮件模板改为显示 `{{ .Token }}`，让用户在页面输入验证码。
+
+在项目根目录启动两个终端：
+
+```sh
+python -m pip install -r backend/auth/requirements.txt
+python -m uvicorn backend.auth.service:app --host 127.0.0.1 --port 8000
+```
+
+```sh
+pnpm dev
+```
+
+前端继续调用 `/api/auth/sign-up`、`/api/auth/verify-email`、`/api/auth/resend-code` 和 `/api/auth/sign-in`。没有真实 Supabase 配置时，认证接口不能完成真实注册或登录。
+
 ## 演示流程
 
 1. Overview 显示固定在 2026 年 9 月的假数据。
