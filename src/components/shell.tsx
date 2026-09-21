@@ -12,13 +12,27 @@ const links: { href: string; label: string; icon: keyof typeof icons }[] = [
   { href: "/challenges", label: "Challenges", icon: "challenges" },
   { href: "/community", label: "Community", icon: "community" },
 ];
-
+const adminLinks: {
+  href: string;
+  label: string;
+  icon: keyof typeof icons;
+}[] = [
+  { href: "/admin", label: "Admin overview", icon: "dashboard" },
+  { href: "/admin/users", label: "Manage users", icon: "community" },
+  {
+    href: "/admin/challenges",
+    label: "Manage challenges",
+    icon: "challenges",
+  },
+];
 export function Shell({
   children,
   householdName,
+  isAdmin,
 }: {
   children: React.ReactNode;
   householdName: string;
+  isAdmin: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -66,6 +80,33 @@ export function Shell({
             </Link>
           ))}
         </nav>
+                {isAdmin && (
+          <>
+            <div className="nav-label">ADMINISTRATION</div>
+
+            <nav aria-label="Administrator navigation">
+              {adminLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  aria-current={
+                    pathname === link.href ? "page" : undefined
+                  }
+                  className={`nav-link ${
+                    pathname === link.href ? "active" : ""
+                  }`}
+                >
+                  <Icon name={link.icon} />
+                  {link.label}
+                  {pathname === link.href && (
+                    <span className="nav-dot" />
+                  )}
+                </Link>
+              ))}
+            </nav>
+          </>
+        )}
         <div className="sidebar-bottom">
           <div className="privacy-note">
             <Icon name="shield" />
@@ -100,8 +141,9 @@ export function Shell({
           <div className="breadcrumb">
             Your space <span>/</span>{" "}
             <strong>
-              {links.find((l) => l.href === pathname)?.label ||
-                "Settings & privacy"}
+              {[...links, ...adminLinks].find(
+              (link) => link.href === pathname,
+            )?.label || "Settings & privacy"}
             </strong>
           </div>
           <div className="topbar-right">

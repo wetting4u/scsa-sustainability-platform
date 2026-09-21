@@ -1,13 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignUpPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [password, setPassword] = useState("");
+
+const passwordRules = [
+  {
+    label: "At least 8 characters",
+    valid: password.length >= 8,
+  },
+  {
+    label: "At least one uppercase letter",
+    valid: /[A-Z]/.test(password),
+  },
+  {
+    label: "At least one lowercase letter",
+    valid: /[a-z]/.test(password),
+  },
+  {
+    label: "At least one number",
+    valid: /\d/.test(password),
+  },
+  {
+    label: "At least one special character",
+    valid: /[^A-Za-z0-9]/.test(password),
+  },
+];
+
+const passwordValid = passwordRules.every((rule) => rule.valid);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -22,8 +48,10 @@ export default function SignUpPage() {
     setError("");
     setMessage("");
 
-    if (password.length < 8) {
-      setError("Password must contain at least 8 characters.");
+    if (!passwordValid) {
+      setError(
+        "Password must contain at least 8 characters, including uppercase, lowercase, number and special character.",
+      );
       return;
     }
 
@@ -54,6 +82,7 @@ export default function SignUpPage() {
   );
 
   form.reset();
+  setPassword("");
 } catch (requestError) {
   setError(
     requestError instanceof Error
@@ -105,11 +134,40 @@ export default function SignUpPage() {
             <input
               name="password"
               type="password"
-              placeholder="At least 8 characters"
+              placeholder="Create a strong password"
               minLength={8}
               required
+              onChange={(event) => setPassword(event.target.value)}
+              aria-describedby="password-requirements"
             />
           </label>
+
+          <ul
+            id="password-requirements"
+            aria-live="polite"
+            style={{
+              margin: "-4px 0 18px",
+              paddingLeft: "20px",
+              fontSize: "14px",
+              lineHeight: 1.7,
+            }}
+          >
+            {passwordRules.map((rule) => (
+              <li
+                key={rule.label}
+                style={{
+                  color:
+                    password.length === 0
+                      ? "#6b7280"
+                      : rule.valid
+                        ? "#2f6b46"
+                        : "#b42318",
+                }}
+              >
+                {rule.valid ? "✓" : "○"} {rule.label}
+              </li>
+            ))}
+          </ul>
 
           <label>
             Confirm password
@@ -136,7 +194,7 @@ export default function SignUpPage() {
           <button
             className="button primary full"
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !passwordValid}
             style={{ marginTop: "16px" }}
           >
             {submitting ? "Creating account..." : "Create account"}
