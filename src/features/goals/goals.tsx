@@ -1,56 +1,84 @@
 "use client";
+
 import { useEffect, useState, type FormEvent } from "react";
-import { Icon, PageHeading, Empty } from "@/components/ui";
+
+import { Empty, Icon, PageHeading } from "@/components/ui";
+import { recordsApi } from "@/features/records/client";
 import {
   resources,
   type Goal,
   type Resource,
+  type UsageRecord,
 } from "@/features/records/domain";
-import { createClient } from "@/lib/supabase/client";
+import { goalsApi } from "./client";
+
+function calculateGoalUsage(
+  goal: Goal,
+  records: UsageRecord[],
+) {
+  return records
+    .filter(
+      (record) =>
+        record.resource === goal.resource &&
+        record.start >= goal.start &&
+        record.end <= goal.end,
+    )
+    .reduce((sum, record) => sum + record.amount, 0);
+}
+
 export function GoalCard({
   goal,
   compact = false,
+  usageRecords,
+  onEdit,
+  onDelete,
+  deleting = false,
 }: {
   goal: Goal;
   compact?: boolean;
+  usageRecords?: UsageRecord[];
+  onEdit?: (goal: Goal) => void;
+  onDelete?: (id: string) => void;
+  deleting?: boolean;
 }) {
   const [total, setTotal] = useState(0);
 
-useEffect(() => {
-  async function loadGoalUsage() {
-    const supabase = createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("usage_records")
-      .select("amount")
-      .eq("user_id", user.id)
-      .eq("resource", goal.resource)
-      .gte("start_date", goal.start)
-      .lte("end_date", goal.end);
-
-    if (error) {
-      console.error(error);
+  useEffect(() => {
+    if (usageRecords !== undefined) {
+      setTotal(calculateGoalUsage(goal, usageRecords));
       return;
     }
 
-    const recordedTotal = (data ?? []).reduce(
-      (sum, record) => sum + Number(record.amount),
-      0,
-    );
+    let cancelled = false;
 
-    setTotal(recordedTotal);
-  }
+    async function loadGoalUsage() {
+      try {
+        const result = await recordsApi.list();
 
-  void loadGoalUsage();
-}, [goal.resource, goal.start, goal.end]);
+        if (!cancelled) {
+          setTotal(calculateGoalUsage(goal, result.data));
+        }
+      } catch (requestError) {
+        console.error(requestError);
 
-const percent = Math.round((total / goal.target) * 100);
+        if (!cancelled) {
+          setTotal(0);
+        }
+      }
+    }
+
+    void loadGoalUsage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [goal, usageRecords]);
+
+  const percent =
+    goal.target > 0
+      ? Math.round((total / goal.target) * 100)
+      : 0;
+
   return (
     <article className={compact ? "goal-card compact" : "panel goal-card"}>
       <div className="goal-meta">
@@ -59,11 +87,14 @@ const percent = Math.round((total / goal.target) * 100);
         </span>
         <span>Usage limit</span>
       </div>
+
       <h3>{goal.title}</h3>
+
       <p>
         Stay within {goal.target.toLocaleString()}{" "}
         {resources[goal.resource].unit}
       </p>
+
       <div className="progress-label">
         <strong>
           {total.toLocaleString()} / {goal.target.toLocaleString()}{" "}
@@ -71,142 +102,219 @@ const percent = Math.round((total / goal.target) * 100);
         </strong>
         <span>{percent}% used</span>
       </div>
+
       <div className="progress-track">
         <div
           className={percent > 100 ? "over" : ""}
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </div>
+
       <small>
         {goal.start} — {goal.end}
       </small>
+
       {!compact && (
-        <p className="caption">
-          {percent > 100
-            ? "Recorded usage exceeds this limit."
-            : "Below the limit so far. Incomplete records do not confirm savings."}
-        </p>
+        <>
+          <p className="caption">
+            {percent > 100
+              ? "Recorded usage exceeds this limit."
+              : "Below the limit so far. Incomplete records do not confirm savings."}
+          </p>
+
+          {(onEdit || onDelete) && (
+            <div className="form-actions">
+              {onEdit && (
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => onEdit(goal)}
+                >
+                  Edit
+                </button>
+              )}
+
+              {onDelete && (
+                <button
+                  className="button secondary"
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => onDelete(goal.id)}
+                >
+                  {deleting ? "Deleting..." : "Delete"}
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
     </article>
   );
 }
+
 export function Goals() {
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [usageRecords, setUsageRecords] = useState<UsageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
+  const [editing, setEditing] = useState<Goal | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [pageError, setPageError] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function loadGoals() {
-      const supabase = createClient();
+    async function loadPageData() {
+      setLoading(true);
+      setPageError("");
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const [goalsResult, recordsResult] = await Promise.all([
+          goalsApi.list(),
+          recordsApi.list(),
+        ]);
 
-      if (!user) {
+        setGoals(goalsResult.data);
+        setUsageRecords(recordsResult.data);
+      } catch (requestError) {
+        setPageError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to load goals.",
+        );
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const { data, error: loadError } = await supabase
-        .from("goals")
-        .select("id, title, resource, target, start_date, end_date")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (loadError) {
-        console.error(loadError);
-        setLoading(false);
-        return;
-      }
-
-      setGoals(
-        (data ?? []).map((goal) => ({
-          id: goal.id,
-          title: goal.title,
-          resource: goal.resource as Resource,
-          target: Number(goal.target),
-          start: goal.start_date,
-          end: goal.end_date,
-        })),
-      );
-
-      setLoading(false);
     }
 
-    void loadGoals();
+    void loadPageData();
   }, []);
-  async function handleGoalSubmit(event: FormEvent<HTMLFormElement>) {
-  event.preventDefault();
 
-  const form = event.currentTarget;
-  const formData = new FormData(form);
+  function openForm(goal?: Goal) {
+    setEditing(goal ?? null);
+    setError("");
+    setMessage("");
+    setShow(true);
+  }
 
-  const target = Number(formData.get("target"));
-  const start = String(formData.get("start"));
-  const end = String(formData.get("end"));
-  const title = String(formData.get("title")).trim();
-  const resource = formData.get("resource") as Resource;
+  function closeForm() {
+    setShow(false);
+    setEditing(null);
+    setError("");
+  }
 
-  if (
-    !title ||
-    !Number.isFinite(target) ||
-    target <= 0 ||
-    target > resources[resource].max ||
-    end < start
+  async function handleGoalSubmit(
+    event: FormEvent<HTMLFormElement>,
   ) {
-    setError(
-      "Enter a title, a positive target within the allowed range, and a valid date period.",
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const resourceValue = String(formData.get("resource"));
+
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        resources,
+        resourceValue,
+      )
+    ) {
+      setError("Choose a valid resource.");
+      return;
+    }
+
+    const goal: Omit<Goal, "id"> = {
+      title: String(formData.get("title")).trim(),
+      resource: resourceValue as Resource,
+      target: Number(formData.get("target")),
+      start: String(formData.get("start")),
+      end: String(formData.get("end")),
+    };
+
+    if (
+      !goal.title ||
+      goal.title.length > 80 ||
+      !Number.isFinite(goal.target) ||
+      goal.target <= 0 ||
+      goal.target > resources[goal.resource].max ||
+      !goal.start ||
+      !goal.end ||
+      goal.end < goal.start
+    ) {
+      setError(
+        "Enter a title, a positive target within the allowed range, and a valid date period.",
+      );
+      return;
+    }
+
+    setError("");
+    setPageError("");
+    setMessage("");
+
+    try {
+      if (editing) {
+        const result = await goalsApi.update(editing.id, goal);
+
+        setGoals((currentGoals) =>
+          currentGoals.map((currentGoal) =>
+            currentGoal.id === editing.id
+              ? result.data
+              : currentGoal,
+          ),
+        );
+
+        setMessage("Goal updated.");
+      } else {
+        const result = await goalsApi.create(goal);
+
+        setGoals((currentGoals) => [
+          result.data,
+          ...currentGoals,
+        ]);
+
+        setMessage("Goal created.");
+      }
+
+      closeForm();
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to save the goal.",
+      );
+    }
+  }
+
+  async function handleDelete(id: string) {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this goal?",
     );
-    return;
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleting(id);
+    setPageError("");
+    setMessage("");
+
+    try {
+      await goalsApi.remove(id);
+
+      setGoals((currentGoals) =>
+        currentGoals.filter((goal) => goal.id !== id),
+      );
+
+      setMessage("Goal deleted.");
+    } catch (requestError) {
+      setPageError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to delete the goal.",
+      );
+    } finally {
+      setDeleting(null);
+    }
   }
 
-  const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    setError("Please sign in again.");
-    return;
-  }
-
-  const { data, error: insertError } = await supabase
-    .from("goals")
-    .insert({
-      user_id: user.id,
-      title,
-      resource,
-      target,
-      start_date: start,
-      end_date: end,
-    })
-    .select("id, title, resource, target, start_date, end_date")
-    .single();
-
-  if (insertError) {
-    setError(insertError.message);
-    return;
-  }
-
-  setGoals((currentGoals) => [
-    {
-      id: data.id,
-      title: data.title,
-      resource: data.resource as Resource,
-      target: Number(data.target),
-      start: data.start_date,
-      end: data.end_date,
-    },
-    ...currentGoals,
-  ]);
-
-  form.reset();
-  setShow(false);
-  setError("");
-}
   return (
     <>
       <PageHeading
@@ -214,21 +322,42 @@ export function Goals() {
         title="Goals with purpose."
         description="Choose a manageable household limit and follow your progress."
         action={
-          <button className="button primary" onClick={() => setShow(!show)}>
+          <button
+            className="button primary"
+            onClick={() => openForm()}
+          >
             <Icon name="plus" />
             Create goal
           </button>
         }
       />
+
       <div className="notice">
         <Icon name="goals" />
         Goals track recorded usage against a limit. They do not verify
         reductions or award savings automatically.
       </div>
+
+      {pageError && (
+        <p className="error" role="alert">
+          {pageError}
+        </p>
+      )}
+
+      {message && (
+        <p className="success" role="status">
+          {message}
+        </p>
+      )}
+
       {show && (
         <section className="panel form-panel">
-          <h2>Create a household goal</h2>
-          <form onSubmit={handleGoalSubmit}>
+          <h2>{editing ? "Edit goal" : "Create a household goal"}</h2>
+
+          <form
+            key={editing?.id ?? "new-goal"}
+            onSubmit={handleGoalSubmit}
+          >
             <div className="form-grid">
               <label>
                 Goal name
@@ -236,19 +365,25 @@ export function Goals() {
                   name="title"
                   required
                   maxLength={80}
+                  defaultValue={editing?.title ?? ""}
                   placeholder="Keep our weekly bin lighter"
                 />
               </label>
+
               <label>
                 Resource
-                <select name="resource">
-                  {Object.entries(resources).map(([k, v]) => (
-                    <option value={k} key={k}>
-                      {v.label} ({v.unit})
+                <select
+                  name="resource"
+                  defaultValue={editing?.resource ?? "electricity"}
+                >
+                  {Object.entries(resources).map(([key, value]) => (
+                    <option value={key} key={key}>
+                      {value.label} ({value.unit})
                     </option>
                   ))}
                 </select>
               </label>
+
               <label>
                 Maximum usage
                 <input
@@ -257,40 +392,46 @@ export function Goals() {
                   min="0.01"
                   step="0.01"
                   required
+                  defaultValue={editing?.target}
                 />
               </label>
+
               <label>
                 Start date
                 <input
                   name="start"
                   type="date"
-                  defaultValue="2026-09-01"
+                  defaultValue={editing?.start ?? "2026-09-01"}
                   required
                 />
               </label>
+
               <label>
                 End date
                 <input
                   name="end"
                   type="date"
-                  defaultValue="2026-09-30"
+                  defaultValue={editing?.end ?? "2026-09-30"}
                   required
                 />
               </label>
             </div>
+
             {error && (
               <p role="alert" className="error">
                 {error}
               </p>
             )}
+
             <div className="form-actions">
               <button className="button primary" type="submit">
-                Save goal
+                {editing ? "Save changes" : "Save goal"}
               </button>
+
               <button
                 className="button secondary"
                 type="button"
-                onClick={() => setShow(false)}
+                onClick={closeForm}
               >
                 Cancel
               </button>
@@ -298,19 +439,31 @@ export function Goals() {
           </form>
         </section>
       )}
+
       <div className="section-title">
         <h2>My goals</h2>
         <span>{goals.length} personal commitments</span>
       </div>
-      <div className="two-grid">
-        {goals.map((g) => (
-          <GoalCard goal={g} key={g.id} />
-        ))}
-      </div>
+
       {loading ? (
         <p>Loading goals...</p>
+      ) : goals.length ? (
+        <div className="two-grid">
+          {goals.map((goal) => (
+            <GoalCard
+              goal={goal}
+              usageRecords={usageRecords}
+              key={goal.id}
+              onEdit={openForm}
+              onDelete={(id) => {
+                void handleDelete(id);
+              }}
+              deleting={deleting === goal.id}
+            />
+          ))}
+        </div>
       ) : (
-        !goals.length && <Empty>Your next small step starts with a goal.</Empty>
+        <Empty>Your next small step starts with a goal.</Empty>
       )}
     </>
   );
