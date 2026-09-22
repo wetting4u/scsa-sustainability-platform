@@ -12,3 +12,8 @@ export type Challenge = {
   icon: string;
   duration: string;
 };
+
+export type ChallengeInput = Omit<
+  Challenge,
+  "id" | "duration"
+>;

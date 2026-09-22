@@ -1,153 +1,295 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import {
+  useEffect,
+  useState,
+  type FormEvent,
+} from "react";
 
-type AdminUser = {
-  id: string;
-  email: string;
-  householdName: string;
-  status: "active" | "disabled";
-};
-
-const initialUsers: AdminUser[] = [
-  {
-    id: "1",
-    email: "user01@example.com",
-    householdName: "Green Gum Household",
-    status: "active",
-  },
-  {
-    id: "2",
-    email: "user02@example.com",
-    householdName: "Riverbank Household",
-    status: "disabled",
-  },
-];
+import { adminUsersApi } from "@/features/admin-users/client";
+import type { AdminManagedUser } from "@/features/admin-users/domain";
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState<AdminManagedUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [workingId, setWorkingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-  "all" | "active" | "disabled"
->("all");
+    "all" | "active" | "disabled"
+  >("all");
 
-  function handleCreateUser(event: FormEvent<HTMLFormElement>) {
+  async function loadUsers() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await adminUsersApi.list();
+      setUsers(result.data);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Unable to load users.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadUsers();
+  }, []);
+
+  async function handleCreateUser(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     const form = event.currentTarget;
     const formData = new FormData(form);
 
-    const email = String(formData.get("email")).trim().toLowerCase();
+    const email = String(formData.get("email") ?? "")
+      .trim()
+      .toLowerCase();
+
+    const password = String(formData.get("password") ?? "");
+
     const householdName = String(
-      formData.get("householdName"),
+      formData.get("householdName") ?? "",
     ).trim();
 
+    const householdSize = Number(
+      formData.get("householdSize"),
+    );
+
+    setCreating(true);
     setMessage("");
     setError("");
 
-    if (users.some((user) => user.email === email)) {
-      setError("A user with this email already exists.");
+    try {
+      const result = await adminUsersApi.create({
+        email,
+        password,
+        householdName,
+        householdSize,
+      });
+
+      setUsers((currentUsers) => [
+        result.data,
+        ...currentUsers,
+      ]);
+
+      setMessage(`${result.data.email} has been created.`);
+      form.reset();
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Unable to create the user.",
+      );
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function toggleUserStatus(userId: string) {
+    const selectedUser = users.find(
+      (user) => user.id === userId,
+    );
+
+    if (!selectedUser || selectedUser.role === "admin") {
       return;
     }
 
-    const newUser: AdminUser = {
-      id: crypto.randomUUID(),
-      email,
-      householdName,
-      status: "active",
-    };
+    const disabled = selectedUser.status === "active";
 
-    setUsers((currentUsers) => [...currentUsers, newUser]);
-    setMessage("Household user created in the frontend demo.");
-    form.reset();
-  }
-  function toggleUserStatus(userId: string) {
-  const selectedUser = users.find((user) => user.id === userId);
+    setWorkingId(userId);
+    setMessage("");
+    setError("");
 
-  if (!selectedUser) {
-    return;
-  }
+    try {
+      await adminUsersApi.update(userId, {
+        disabled,
+      });
 
-  const nextStatus =
-    selectedUser.status === "active" ? "disabled" : "active";
+      setUsers((currentUsers) =>
+        currentUsers.map((user) =>
+          user.id === userId
+            ? {
+                ...user,
+                status: disabled ? "disabled" : "active",
+              }
+            : user,
+        ),
+      );
 
-  setUsers((currentUsers) =>
-    currentUsers.map((user) =>
-      user.id === userId ? { ...user, status: nextStatus } : user,
-    ),
-  );
-
-  setError("");
-  setMessage(
-    nextStatus === "disabled"
-      ? `${selectedUser.email} has been disabled.`
-      : `${selectedUser.email} has been restored.`,
-  );
-}
-
-function deleteUser(userId: string) {
-  const selectedUser = users.find((user) => user.id === userId);
-
-  if (!selectedUser) {
-    return;
+      setMessage(
+        disabled
+          ? `${selectedUser.email} has been disabled.`
+          : `${selectedUser.email} has been restored.`,
+      );
+    } catch (statusError) {
+      setError(
+        statusError instanceof Error
+          ? statusError.message
+          : "Unable to update the user status.",
+      );
+    } finally {
+      setWorkingId(null);
+    }
   }
 
-  const confirmed = window.confirm(
-    `Are you sure you want to delete ${selectedUser.email}? This action cannot be undone.`,
-  );
+  async function editUser(userId: string) {
+    const currentUser = users.find(
+      (user) => user.id === userId,
+    );
 
-  if (!confirmed) {
-    return;
+    if (!currentUser || currentUser.role === "admin") {
+      return;
+    }
+
+    const newEmail = window.prompt(
+      "Enter the user's email address:",
+      currentUser.email,
+    );
+
+    if (newEmail === null) {
+      return;
+    }
+
+    const newHouseholdName = window.prompt(
+      "Enter a new household name:",
+      currentUser.householdName,
+    );
+
+    if (newHouseholdName === null) {
+      return;
+    }
+
+    const newHouseholdSize = window.prompt(
+      "Enter the household size:",
+      String(currentUser.householdSize),
+    );
+
+    if (newHouseholdSize === null) {
+      return;
+    }
+
+    const email = newEmail.trim().toLowerCase();
+    const householdName = newHouseholdName.trim();
+    const householdSize = Number(newHouseholdSize);
+
+    if (!email || !householdName) {
+      window.alert(
+        "Email and household name cannot be empty.",
+      );
+      return;
+    }
+
+    if (
+      !Number.isInteger(householdSize) ||
+      householdSize < 1 ||
+      householdSize > 20
+    ) {
+      window.alert(
+        "Household size must be a whole number between 1 and 20.",
+      );
+      return;
+    }
+
+    setWorkingId(userId);
+    setMessage("");
+    setError("");
+
+    try {
+      await adminUsersApi.update(userId, {
+        email,
+        householdName,
+        householdSize,
+      });
+
+      setUsers((currentUsers) =>
+        currentUsers.map((user) =>
+          user.id === userId
+            ? {
+                ...user,
+                email,
+                householdName,
+                householdSize,
+              }
+            : user,
+        ),
+      );
+
+      setMessage(`${email} has been updated.`);
+    } catch (updateError) {
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "Unable to update the user.",
+      );
+    } finally {
+      setWorkingId(null);
+    }
   }
 
-  setUsers((currentUsers) =>
-    currentUsers.filter((user) => user.id !== userId),
-  );
+  async function deleteUser(userId: string) {
+    const selectedUser = users.find(
+      (user) => user.id === userId,
+    );
 
-  setError("");
-  setMessage(`${selectedUser.email} has been deleted.`);
-}
-function editHousehold(userId: string) {
-  const currentUser = users.find((user) => user.id === userId);
+    if (!selectedUser || selectedUser.role === "admin") {
+      return;
+    }
 
-  if (!currentUser) return;
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedUser.email}? This action cannot be undone.`,
+    );
 
-  const newName = window.prompt(
-    "Enter a new household name:",
-    currentUser.householdName,
-  );
+    if (!confirmed) {
+      return;
+    }
 
-  if (newName === null) return;
+    setWorkingId(userId);
+    setMessage("");
+    setError("");
 
-  const trimmedName = newName.trim();
+    try {
+      await adminUsersApi.remove(userId);
 
-  if (!trimmedName) {
-    window.alert("Household name cannot be empty.");
-    return;
+      setUsers((currentUsers) =>
+        currentUsers.filter((user) => user.id !== userId),
+      );
+
+      setMessage(`${selectedUser.email} has been deleted.`);
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Unable to delete the user.",
+      );
+    } finally {
+      setWorkingId(null);
+    }
   }
 
-  setUsers((currentUsers) =>
-    currentUsers.map((user) =>
-      user.id === userId
-        ? { ...user, householdName: trimmedName }
-        : user,
-    ),
-  );
-}
-const filteredUsers = users.filter((user) => {
-  const keyword = searchTerm.trim().toLowerCase();
+  const filteredUsers = users.filter((user) => {
+    const keyword = searchTerm.trim().toLowerCase();
 
-  const matchesSearch =
-    user.email.toLowerCase().includes(keyword) ||
-    user.householdName.toLowerCase().includes(keyword);
+    const matchesSearch =
+      user.email.toLowerCase().includes(keyword) ||
+      user.householdName.toLowerCase().includes(keyword);
 
-  const matchesStatus =
-    statusFilter === "all" || user.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "all" ||
+      user.status === statusFilter;
 
-  return matchesSearch && matchesStatus;
-});
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <main
       style={{
@@ -155,21 +297,28 @@ const filteredUsers = users.filter((user) => {
         padding: "48px 24px",
       }}
     >
-      <div style={{ width: "100%", maxWidth: "1100px", margin: "0 auto" }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "1100px",
+          margin: "0 auto",
+        }}
+      >
         <div className="eyebrow">ADMINISTRATION</div>
 
         <h1>Manage users</h1>
 
         <p>
-          Create household accounts and review their current account status.
+          Create household accounts and review their current
+          account status.
         </p>
 
         <section className="panel form-panel">
           <h2>Create household user</h2>
 
           <p>
-            New accounts are created as ordinary household users. Administrator
-            roles and passwords cannot be changed from this page.
+            New accounts are created as ordinary household users.
+            The administrator account remains protected.
           </p>
 
           <form onSubmit={handleCreateUser}>
@@ -185,6 +334,18 @@ const filteredUsers = users.filter((user) => {
               </label>
 
               <label>
+                Temporary password
+                <input
+                  name="password"
+                  type="password"
+                  minLength={8}
+                  pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}"
+                  title="Use at least 8 characters with uppercase, lowercase and a special character."
+                  required
+                />
+              </label>
+
+              <label>
                 Household name
                 <input
                   name="householdName"
@@ -194,27 +355,49 @@ const filteredUsers = users.filter((user) => {
                   required
                 />
               </label>
+
+              <label>
+                Household size
+                <input
+                  name="householdSize"
+                  type="number"
+                  min={1}
+                  max={20}
+                  step={1}
+                  defaultValue={1}
+                  required
+                />
+              </label>
             </div>
 
-            {error && (
-              <p className="error" role="alert">
-                {error}
-              </p>
-            )}
-
-            {message && (
-              <p className="success" role="status">
-                {message}
-              </p>
-            )}
+            <p className="caption">
+              Passwords require at least 8 characters, uppercase
+              and lowercase letters, and a special character.
+            </p>
 
             <div className="form-actions">
-              <button className="button primary" type="submit">
-                Create user
+              <button
+                className="button primary"
+                type="submit"
+                disabled={creating}
+              >
+                {creating ? "Creating..." : "Create user"}
               </button>
             </div>
           </form>
         </section>
+
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+
+        {message && (
+          <p className="success" role="status">
+            {message}
+          </p>
+        )}
 
         <section className="panel">
           <div className="section-title">
@@ -226,61 +409,82 @@ const filteredUsers = users.filter((user) => {
 
           <div className="table-scroll">
             <div style={{ marginBottom: "28px" }}>
-            <label
+              <label
                 htmlFor="user-search"
-                style={{ display: "block", marginBottom: "6px", fontWeight: 600 }}
-            >
+                style={{
+                  display: "block",
+                  marginBottom: "6px",
+                  fontWeight: 600,
+                }}
+              >
                 Search users
-            </label>
+              </label>
 
-            <input
+              <input
                 id="user-search"
                 type="search"
                 placeholder="Search by email or household..."
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) =>
+                  setSearchTerm(event.target.value)
+                }
                 style={{
-                width: "100%",
-                padding: "10px 12px",
-                border: "1px solid #cfd8cf",
-                borderRadius: "6px",
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: "1px solid #cfd8cf",
+                  borderRadius: "6px",
                 }}
-            />
-            <div style={{ marginTop: "14px", maxWidth: "220px" }}>
+              />
+
+              <div
+                style={{
+                  marginTop: "14px",
+                  maxWidth: "220px",
+                }}
+              >
                 <label
-                    htmlFor="status-filter"
-                    style={{ display: "block", marginBottom: "6px", fontWeight: 600 }}
+                  htmlFor="status-filter"
+                  style={{
+                    display: "block",
+                    marginBottom: "6px",
+                    fontWeight: 600,
+                  }}
                 >
-                    Filter by status
+                  Filter by status
                 </label>
 
                 <select
-                    id="status-filter"
-                    value={statusFilter}
-                    onChange={(event) =>
+                  id="status-filter"
+                  value={statusFilter}
+                  onChange={(event) =>
                     setStatusFilter(
-                        event.target.value as "all" | "active" | "disabled",
+                      event.target.value as
+                        | "all"
+                        | "active"
+                        | "disabled",
                     )
-                    }
-                    style={{
+                  }
+                  style={{
                     width: "100%",
                     padding: "10px 12px",
                     border: "1px solid #cfd8cf",
                     borderRadius: "6px",
                     backgroundColor: "white",
-                    }}
+                  }}
                 >
-                    <option value="all">All users</option>
-                    <option value="active">Active</option>
-                    <option value="disabled">Disabled</option>
+                  <option value="all">All users</option>
+                  <option value="active">Active</option>
+                  <option value="disabled">Disabled</option>
                 </select>
+              </div>
             </div>
-            </div>
+
             <table>
               <thead>
                 <tr>
                   <th>Email</th>
                   <th>Household name</th>
+                  <th>Size</th>
                   <th>Role</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -288,73 +492,130 @@ const filteredUsers = users.filter((user) => {
               </thead>
 
               <tbody>
-                {filteredUsers.length === 0 && (
-                <tr>
+                {loading && (
+                  <tr>
                     <td
-                    colSpan={5}
-                    style={{
+                      colSpan={6}
+                      style={{
+                        padding: "32px",
+                        textAlign: "center",
+                      }}
+                    >
+                      Loading users...
+                    </td>
+                  </tr>
+                )}
+
+                {!loading && filteredUsers.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      style={{
                         padding: "32px",
                         textAlign: "center",
                         color: "#6b746b",
-                    }}
+                      }}
                     >
-                    No users found. Try a different email or household name.
+                      No users found. Try a different email or
+                      household name.
                     </td>
-                </tr>
-                )}
-                {filteredUsers.map((user) => (
-                  <tr key={user.id}>
-                    <td>{user.email}</td>
-                    <td>{user.householdName}</td>
-                    <td>Household</td>
-                    <td>
-                      <span
-                        style={{
-                          color:
-                            user.status === "active" ? "#2e603d" : "#9d332c",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {user.status === "active" ? "Active" : "Disabled"}
-                      </span>
-                    </td>
-                    <td>
-                        <div
-                            style={{
-                            display: "flex",
-                            gap: "8px",
-                            alignItems: "center",
-                            }}
-                        >
-                            <button
-                            className="button secondary"
-                            type="button"
-                            onClick={() => toggleUserStatus(user.id)}
-                            >
-                            {user.status === "active" ? "Disable" : "Restore"}
-                            </button>
-                            <button
-                            className="button secondary"
-                            type="button"
-                            onClick={() => editHousehold(user.id)}
-                            >
-                            Edit household
-                            </button>
-                            <button
-                            className="button secondary"
-                            type="button"
-                            onClick={() => deleteUser(user.id)}
-                            style={{
-                                color: "#9d332c",
-                                borderColor: "#d9aaa5",
-                            }}
-                            >
-                            Delete
-                            </button>
-                        </div>
-                        </td>
                   </tr>
-                ))}
+                )}
+
+                {!loading &&
+                  filteredUsers.map((user) => {
+                    const protectedAdmin =
+                      user.role === "admin";
+                    const working = workingId === user.id;
+
+                    return (
+                      <tr key={user.id}>
+                        <td>{user.email}</td>
+                        <td>
+                          {user.householdName || "Unnamed household"}
+                        </td>
+                        <td>{user.householdSize}</td>
+                        <td>
+                          {protectedAdmin
+                            ? "Administrator"
+                            : "Household"}
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              color:
+                                user.status === "active"
+                                  ? "#2e603d"
+                                  : "#9d332c",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {user.status === "active"
+                              ? "Active"
+                              : "Disabled"}
+                          </span>
+                        </td>
+
+                        <td>
+                          {protectedAdmin ? (
+                            <span className="caption">
+                              Protected administrator
+                            </span>
+                          ) : (
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "8px",
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <button
+                                className="button secondary"
+                                type="button"
+                                disabled={working}
+                                onClick={() =>
+                                  void toggleUserStatus(user.id)
+                                }
+                              >
+                                {working
+                                  ? "Updating..."
+                                  : user.status === "active"
+                                    ? "Disable"
+                                    : "Restore"}
+                              </button>
+
+                              <button
+                                className="button secondary"
+                                type="button"
+                                disabled={working}
+                                onClick={() =>
+                                  void editUser(user.id)
+                                }
+                              >
+                                Edit user
+                              </button>
+
+                              <button
+                                className="button secondary"
+                                type="button"
+                                disabled={working}
+                                onClick={() =>
+                                  void deleteUser(user.id)
+                                }
+                                style={{
+                                  color: "#9d332c",
+                                  borderColor: "#d9aaa5",
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>

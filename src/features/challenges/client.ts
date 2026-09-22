@@ -1,6 +1,9 @@
 "use client";
 
-import type { Challenge } from "./domain";
+import type {
+  Challenge,
+  ChallengeInput,
+} from "./domain";
 
 type ApiErrorBody = {
   error?: {
@@ -19,13 +22,26 @@ type MembershipResult = {
 async function request<T>(
   path: string,
   method: string,
+  body?: unknown,
 ): Promise<T> {
   const response = await fetch(path, {
     method,
+    headers:
+      body === undefined
+        ? undefined
+        : {
+            "Content-Type": "application/json",
+          },
+    body:
+      body === undefined
+        ? undefined
+        : JSON.stringify(body),
     cache: "no-store",
   });
 
-  const payload = await response.json().catch(() => undefined);
+  const payload = await response
+    .json()
+    .catch(() => undefined);
 
   if (!response.ok) {
     const errorBody = payload as ApiErrorBody | undefined;
@@ -41,7 +57,10 @@ async function request<T>(
 
 export const challengesApi = {
   list: () =>
-    request<{ data: Challenge[] }>("/api/challenges", "GET"),
+    request<{ data: Challenge[] }>(
+      "/api/challenges",
+      "GET",
+    ),
 
   memberships: () =>
     request<{ data: string[] }>(
@@ -51,13 +70,46 @@ export const challengesApi = {
 
   join: (challengeId: string) =>
     request<MembershipResult>(
-      `/api/challenges/${encodeURIComponent(challengeId)}/membership`,
+      `/api/challenges/${encodeURIComponent(
+        challengeId,
+      )}/membership`,
       "POST",
     ),
 
   leave: (challengeId: string) =>
     request<MembershipResult>(
-      `/api/challenges/${encodeURIComponent(challengeId)}/membership`,
+      `/api/challenges/${encodeURIComponent(
+        challengeId,
+      )}/membership`,
+      "DELETE",
+    ),
+};
+
+export const adminChallengesApi = {
+  create: (challenge: ChallengeInput) =>
+    request<{ data: Challenge }>(
+      "/api/admin/challenges",
+      "POST",
+      challenge,
+    ),
+
+  update: (
+    challengeId: string,
+    challenge: ChallengeInput,
+  ) =>
+    request<{ data: Challenge }>(
+      `/api/admin/challenges/${encodeURIComponent(
+        challengeId,
+      )}`,
+      "PATCH",
+      challenge,
+    ),
+
+  remove: (challengeId: string) =>
+    request<{ data: { id: string } }>(
+      `/api/admin/challenges/${encodeURIComponent(
+        challengeId,
+      )}`,
       "DELETE",
     ),
 };

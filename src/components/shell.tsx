@@ -12,13 +12,26 @@ const links: { href: string; label: string; icon: keyof typeof icons }[] = [
   { href: "/challenges", label: "Challenges", icon: "challenges" },
   { href: "/community", label: "Community", icon: "community" },
 ];
+const usersLink: {
+  href: string;
+  label: string;
+  icon: keyof typeof icons;
+} = {
+  href: "/admin/users",
+  label: "Users",
+  icon: "community",
+};
+
 const adminLinks: {
   href: string;
   label: string;
   icon: keyof typeof icons;
 }[] = [
-  { href: "/admin", label: "Admin overview", icon: "dashboard" },
-  { href: "/admin/users", label: "Manage users", icon: "community" },
+  {
+    href: "/admin",
+    label: "Admin overview",
+    icon: "dashboard",
+  },
   {
     href: "/admin/challenges",
     label: "Manage challenges",
@@ -79,6 +92,24 @@ export function Shell({
               {pathname === l.href && <span className="nav-dot" />}
             </Link>
           ))}
+          {isAdmin && (
+          <Link
+            href={usersLink.href}
+            onClick={() => setOpen(false)}
+            aria-current={
+              pathname === usersLink.href ? "page" : undefined
+            }
+            className={`nav-link ${
+              pathname === usersLink.href ? "active" : ""
+            }`}
+          >
+            <Icon name={usersLink.icon} />
+            {usersLink.label}
+            {pathname === usersLink.href && (
+              <span className="nav-dot" />
+            )}
+          </Link>
+        )}
         </nav>
                 {isAdmin && (
           <>
@@ -141,7 +172,7 @@ export function Shell({
           <div className="breadcrumb">
             Your space <span>/</span>{" "}
             <strong>
-              {[...links, ...adminLinks].find(
+              {[...links, usersLink, ...adminLinks].find(
               (link) => link.href === pathname,
             )?.label || "Settings & privacy"}
             </strong>

@@ -7,10 +7,15 @@ export function Settings() {
 const [analytics, setAnalytics] = useState(false);
 const [leaderboard, setLeaderboard] = useState(false);
 const [household, setHousehold] = useState("");
+const [householdSize, setHouseholdSize] = useState(1);
   const [message, setMessage] = useState("");
   const router = useRouter();
 const [saving, setSaving] = useState(false);
 const [savingPrivacy, setSavingPrivacy] = useState(false);
+const [changingPassword, setChangingPassword] = useState(false);
+const [passwordError, setPasswordError] = useState("");
+const [passwordMessage, setPasswordMessage] = useState("");
+const [profileUpdated, setProfileUpdated] = useState(false);
 
 useEffect(() => {
   async function loadProfile() {
@@ -24,7 +29,9 @@ useEffect(() => {
 
     const { data } = await supabase
       .from("household_profiles")
-      .select("display_name, share_analytics, display_leaderboard")
+      .select("display_name, share_analytics, display_leaderboard").select(
+      "display_name, household_size, share_analytics, display_leaderboard",
+      )
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -33,6 +40,7 @@ useEffect(() => {
           setHousehold(data.display_name);
         }
 
+        setHouseholdSize(Number(data.household_size ?? 1));
         setAnalytics(Boolean(data.share_analytics));
         setLeaderboard(Boolean(data.display_leaderboard));
       }
@@ -46,14 +54,32 @@ async function handleProfileSubmit(
 ) {
   event.preventDefault();
 
+  const formData = new FormData(event.currentTarget);
+
   const value = String(
-    new FormData(event.currentTarget).get("household"),
+  formData.get("household") ?? "",
   ).trim();
+
+  const size = Number(formData.get("householdSize"));
 
   if (!value) {
     setMessage("Please enter a household name.");
     return;
   }
+  if (
+  !Number.isInteger(size) ||
+  size < 1 ||
+  size > 20
+  ) {
+  setMessage(
+    "Household size must be a whole number between 1 and 20.",
+  );
+  return;
+  }
+
+setSaving(true);
+setMessage("");
+setProfileUpdated(false);
 
   setSaving(true);
   setMessage("");
@@ -72,14 +98,19 @@ async function handleProfileSubmit(
 
   const { error } = await supabase
     .from("household_profiles")
-    .update({ display_name: value })
+    .update({
+      display_name: value,
+      household_size: size,
+    })
     .eq("user_id", user.id);
 
   if (error) {
     setMessage(error.message);
   } else {
     setHousehold(value);
-    setMessage("Household profile updated.");
+    setHouseholdSize(size);
+    setMessage("");
+    setProfileUpdated(true);
     router.refresh();
   }
 
@@ -123,7 +154,57 @@ async function updatePrivacyPreference(
 
   setSavingPrivacy(false);
 }
+async function handlePasswordSubmit(
+  event: FormEvent<HTMLFormElement>,
+) {
+  event.preventDefault();
 
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(
+    formData.get("confirmPassword") ?? "",
+  );
+
+  setPasswordError("");
+  setPasswordMessage("");
+
+  const validPassword =
+    password.length >= 8 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password);
+
+  if (!validPassword) {
+    setPasswordError(
+      "Password must contain at least 8 characters, uppercase and lowercase letters, and a special character.",
+    );
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    setPasswordError("The two passwords do not match.");
+    return;
+  }
+
+  setChangingPassword(true);
+
+  const supabase = createClient();
+
+  const { error } = await supabase.auth.updateUser({
+    password,
+  });
+
+  if (error) {
+    setPasswordError(error.message);
+  } else {
+    form.reset();
+    setPasswordMessage("Password updated successfully.");
+  }
+
+  setChangingPassword(false);
+}
   return (
     <>
       <PageHeading
@@ -152,6 +233,19 @@ async function updatePrivacyPreference(
                 required
               />
             </label>
+                        <label>
+              Household size
+              <input
+                key={`household-size-${householdSize}`}
+                name="householdSize"
+                type="number"
+                min={1}
+                max={20}
+                step={1}
+                defaultValue={householdSize}
+                required
+              />
+            </label>
             <p className="caption">
               You can update this name at any time. No address or personal details are required.
             </p>
@@ -164,6 +258,66 @@ async function updatePrivacyPreference(
             </button>
           </form>
         </section>
+        <section className="panel">
+          <h2>Change password</h2>
+
+          <p>
+            Enter a new password for your account. No confirmation
+            email is required.
+          </p>
+
+          <form onSubmit={handlePasswordSubmit}>
+            <label>
+              New password
+              <input
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </label>
+
+            <p className="caption">
+              Use at least 8 characters with uppercase and lowercase
+              letters and a special character.
+            </p>
+
+            <label>
+              Confirm new password
+              <input
+                name="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </label>
+
+            {passwordError && (
+              <p className="error" role="alert">
+                {passwordError}
+              </p>
+            )}
+
+            {passwordMessage && (
+              <p className="success" role="status">
+                {passwordMessage}
+              </p>
+            )}
+
+            <button
+              className="button primary"
+              type="submit"
+              disabled={changingPassword}
+            >
+              {changingPassword
+                ? "Updating password..."
+                : "Update password"}
+            </button>
+          </form>
+        </section>
+        
         <section className="panel">
           <h2>Privacy by default</h2>
           <p>
@@ -230,6 +384,51 @@ async function updatePrivacyPreference(
       <p role="status" className={message ? "success" : ""}>
         {message}
       </p>
+      {profileUpdated && (
+  <div
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="profile-updated-title"
+    style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 1000,
+      display: "grid",
+      placeItems: "center",
+      padding: "24px",
+      background: "rgba(15, 35, 27, 0.45)",
+      backdropFilter: "blur(3px)",
+    }}
+  >
+    <section
+      className="panel"
+      style={{
+        width: "100%",
+        maxWidth: "420px",
+        textAlign: "center",
+      }}
+    >
+      <Icon name="check" size={42} />
+
+      <h2 id="profile-updated-title">
+        Profile updated
+      </h2>
+
+      <p>
+        Your household name and household size have been
+        saved successfully.
+      </p>
+
+      <button
+        type="button"
+        className="button primary"
+        onClick={() => setProfileUpdated(false)}
+      >
+        Done
+      </button>
+    </section>
+  </div>
+  )}
     </>
   );
 }
