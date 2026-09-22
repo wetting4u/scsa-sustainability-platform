@@ -7,10 +7,11 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/domain.test.ts",
+    "test": "node --experimental-strip-types --test tests/domain.test.ts tests/goals.test.ts",
     "format": "prettier --write src tests next.config.ts",
     "format:check": "prettier --check src tests next.config.ts",
-    "test:db": "node --test tests/database.test.mjs"
+    "test:db": "node --test tests/database.test.mjs",
+    "test:api": "node --import ./tests/helpers/register.mjs --test tests/household-api.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -1,11 +1,8 @@
 import "server-only";
 
+import { allRows } from "@/lib/api";
 import { createClient } from "@/lib/supabase/server";
-import {
-  validateRecord,
-  type Resource,
-  type UsageRecord,
-} from "../domain";
+import { validateRecord, type Resource, type UsageRecord } from "../domain";
 
 type UsageRecordRow = {
   id: string;
@@ -50,21 +47,24 @@ export async function listRecords() {
     );
   }
 
-  const { data, error } = await supabase
-    .from("usage_records")
-    .select("id, resource, start_date, end_date, amount")
-    .eq("user_id", user.id)
-    .order("end_date", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (error) {
+  let data: UsageRecordRow[];
+  try {
+    data = await allRows((from, to) =>
+      supabase
+        .from("usage_records")
+        .select("id, resource, start_date, end_date, amount")
+        .eq("user_id", user.id)
+        .order("end_date", { ascending: false })
+        .order("id")
+        .range(from, to),
+    );
+  } catch {
     return apiError(
       500,
       "RECORDS_QUERY_FAILED",
       "Unable to load usage records.",
     );
   }
-
   const rows = (data ?? []) as UsageRecordRow[];
 
   const records: UsageRecord[] = rows.map((row) => ({
@@ -155,7 +155,6 @@ export async function createRecord(request: Request) {
   const { data, error } = await supabase
     .from("usage_records")
     .insert({
-      user_id: user.id,
       resource: record.resource,
       start_date: record.start,
       end_date: record.end,

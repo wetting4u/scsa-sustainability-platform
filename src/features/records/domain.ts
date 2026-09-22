@@ -6,7 +6,15 @@ export type UsageRecord = {
   end: string;
   amount: number;
 };
+export type GoalUsage = {
+  amount: number;
+  recordCount: number;
+  hasRecords: boolean;
+  percentUsed: number | null;
+  status: "no_records" | "over_limit" | "within_recorded_limit";
+};
 export type Goal = {
+  usage?: GoalUsage;
   id: string;
   title: string;
   resource: Resource;
