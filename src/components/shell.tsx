@@ -11,6 +11,7 @@ const links: { href: string; label: string; icon: keyof typeof icons }[] = [
   { href: "/goals", label: "Goals", icon: "goals" },
   { href: "/challenges", label: "Challenges", icon: "challenges" },
   { href: "/community", label: "Community", icon: "community" },
+  { href: "/settings", label: "Settings", icon: "settings" },
 ];
 const usersLink: {
   href: string;
@@ -138,26 +139,6 @@ export function Shell({
             </nav>
           </>
         )}
-        <div className="sidebar-bottom">
-          <div className="privacy-note">
-            <Icon name="shield" />
-            <strong>Your progress. Your choice.</strong>
-            <p>Your household records are private by default.</p>
-            <Link href="/settings" onClick={() => setOpen(false)}>
-              Explore privacy settings <Icon name="arrow" size={15} />
-            </Link>
-          </div>
-          <Link
-            href="/settings"
-            className={`nav-link ${pathname === "/settings" ? "active" : ""}`}
-            aria-current={pathname === "/settings" ? "page" : undefined}
-            onClick={() => setOpen(false)}
-          >
-            <Icon name="settings" />
-            Settings & privacy
-          </Link>
-          <div className="sidebar-footer">Small steps. Shared future.</div>
-        </div>
       </aside>
       <div className="app-body">
         <header className="topbar">
