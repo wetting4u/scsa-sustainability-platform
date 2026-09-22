@@ -1,25 +1,16 @@
 "use client";
+
 import { useEffect, useState } from "react";
+
 import { Icon, PageHeading } from "@/components/ui";
-import { createClient } from "@/lib/supabase/client";
 import {
   resources,
   totalFor,
-  type Resource,
   type UsageRecord,
 } from "@/features/records/domain";
-type Challenge = {
-  id: string;
-  title: string;
-  description: string;
-  resource: Resource;
-  target: number;
-  start: string;
-  end: string;
-  tag: string;
-  icon: string;
-  duration: string;
-};
+import { recordsApi } from "@/features/records/client";
+import { challengesApi } from "./client";
+import type { Challenge } from "./domain";
 
 export function Challenges() {
   const [records, setRecords] = useState<UsageRecord[]>([]);
@@ -28,186 +19,75 @@ export function Challenges() {
   const [changing, setChanging] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
-const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-useEffect(() => {
-  async function loadChallenges() {
-    const supabase = createClient();
+  useEffect(() => {
+    async function loadChallengePage() {
+      setLoading(true);
+      setMembershipError("");
 
-    const { data, error } = await supabase
-      .from("challenges")
-      .select(
-        "id, title, description, resource, target, start_date, end_date, tag, icon",
-      )
-      .order("start_date", { ascending: true });
+      try {
+        const [
+          challengesResult,
+          membershipsResult,
+          recordsResult,
+        ] = await Promise.all([
+          challengesApi.list(),
+          challengesApi.memberships(),
+          recordsApi.list(),
+        ]);
 
-    if (error) {
-      console.error(error);
-      setLoading(false);
-      return;
+        setChallenges(challengesResult.data);
+        setJoined(membershipsResult.data);
+        setRecords(recordsResult.data);
+      } catch (error) {
+        setMembershipError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load challenges.",
+        );
+      } finally {
+        setLoading(false);
+      }
     }
 
-    setChallenges(
-      (data ?? []).map((challenge) => {
-        const days =
-          Math.round(
-            (Date.parse(challenge.end_date) -
-              Date.parse(challenge.start_date)) /
-              86400000,
-          ) + 1;
+    void loadChallengePage();
+  }, []);
 
-        return {
-          id: challenge.id,
-          title: challenge.title,
-          description: challenge.description,
-          resource: challenge.resource as Resource,
-          target: Number(challenge.target),
-          start: challenge.start_date,
-          end: challenge.end_date,
-          tag: challenge.tag,
-          icon: challenge.icon,
-          duration: `${days} days`,
-        };
-      }),
-    );
+  async function toggleChallenge(
+    challengeId: string,
+    active: boolean,
+  ) {
+    setChanging(challengeId);
+    setMembershipError("");
 
-    setLoading(false);
-  }
+    try {
+      if (active) {
+        await challengesApi.leave(challengeId);
 
-  void loadChallenges();
-}, []);
-useEffect(() => {
-  async function loadMemberships() {
-    const supabase = createClient();
+        setJoined((current) =>
+          current.filter((id) => id !== challengeId),
+        );
+      } else {
+        await challengesApi.join(challengeId);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("challenge_memberships")
-      .select("challenge_id")
-      .eq("user_id", user.id);
-
-    if (error) {
-      setMembershipError(error.message);
-      return;
+        setJoined((current) =>
+          current.includes(challengeId)
+            ? current
+            : [...current, challengeId],
+        );
+      }
+    } catch (error) {
+      setMembershipError(
+        error instanceof Error
+          ? error.message
+          : "Unable to update challenge membership.",
+      );
+    } finally {
+      setChanging(null);
     }
-
-    setJoined((data ?? []).map((membership) => membership.challenge_id));
   }
 
-  void loadMemberships();
-}, []);
-useEffect(() => {
-  async function loadRecords() {
-    const supabase = createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("usage_records")
-      .select("id, resource, start_date, end_date, amount")
-      .eq("user_id", user.id);
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setRecords(
-      (data ?? []).map((record) => ({
-        id: record.id,
-        resource: record.resource as Resource,
-        start: record.start_date,
-        end: record.end_date,
-        amount: Number(record.amount),
-      })),
-    );
-  }
-
-  void loadRecords();
-}, []);
-useEffect(() => {
-  async function loadRecords() {
-    const supabase = createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("usage_records")
-      .select("id, resource, start_date, end_date, amount")
-      .eq("user_id", user.id);
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setRecords(
-      (data ?? []).map((record) => ({
-        id: record.id,
-        resource: record.resource as Resource,
-        start: record.start_date,
-        end: record.end_date,
-        amount: Number(record.amount),
-      })),
-    );
-  }
-
-  void loadRecords();
-}, []);
-async function toggleChallenge(challengeId: string, active: boolean) {
-  setChanging(challengeId);
-  setMembershipError("");
-
-  const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    setMembershipError("Please sign in again.");
-    setChanging(null);
-    return;
-  }
-
-  const result = active
-    ? await supabase
-        .from("challenge_memberships")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("challenge_id", challengeId)
-    : await supabase.from("challenge_memberships").insert({
-        user_id: user.id,
-        challenge_id: challengeId,
-      });
-
-  if (result.error) {
-    setMembershipError(result.error.message);
-    setChanging(null);
-    return;
-  }
-
-  setJoined((current) =>
-    active
-      ? current.filter((id) => id !== challengeId)
-      : [...current, challengeId],
-  );
-
-  setChanging(null);
-}
   return (
     <>
       <PageHeading
@@ -215,94 +95,152 @@ async function toggleChallenge(challengeId: string, active: boolean) {
         title="A challenge worth taking."
         description="Choose a small commitment. See what your household can do."
       />
+
       <div className="welcome-banner challenge-banner">
         <div>
-          <span className="eyebrow">PROGRESS OVER PERFECTION</span>
+          <span className="eyebrow">
+            PROGRESS OVER PERFECTION
+          </span>
+
           <h2>
             Little changes.
             <br />
             Lasting habits.
           </h2>
+
           <p>
             Join a challenge at your own pace.
             <br />
-            Your participation stays private unless you choose to share.
+            Your participation stays private unless you choose to
+            share.
           </p>
         </div>
+
         <div className="challenge-emblem">
           <Icon name="sprout" size={100} />
         </div>
       </div>
+
       {membershipError && (
-      <p role="alert" className="error">
-      {membershipError}
-      </p>
+        <p role="alert" className="error">
+          {membershipError}
+        </p>
       )}
+
       <div className="section-title">
         <h2>Explore challenges</h2>
+
         <span>
           {joined.length} joined ·{" "}
-          {loading ? "Loading challenges..." : `${challenges.length} available`}
+          {loading
+            ? "Loading challenges..."
+            : `${challenges.length} available`}
         </span>
       </div>
+
       <div className="three-grid">
-        {challenges.map((c) => {
-          const active = joined.includes(c.id);
+        {challenges.map((challenge) => {
+          const active = joined.includes(challenge.id);
+
           return (
-            <article className="panel challenge-card" key={c.id}>
-              <div className={`challenge-art ${c.resource}`}>
-                <Icon name={c.icon as "sprout" | "bolt" | "drop"} size={66} />
-                <span>{c.duration}</span>
+            <article
+              className="panel challenge-card"
+              key={challenge.id}
+            >
+              <div
+                className={`challenge-art ${challenge.resource}`}
+              >
+                <Icon
+                  name={
+                    challenge.icon as
+                      | "sprout"
+                      | "bolt"
+                      | "drop"
+                  }
+                  size={66}
+                />
+
+                <span>{challenge.duration}</span>
               </div>
-              <div className="eyebrow">{c.tag}</div>
-              <h2>{c.title}</h2>
-              <p>{c.description}</p>
+
+              <div className="eyebrow">{challenge.tag}</div>
+
+              <h2>{challenge.title}</h2>
+
+              <p>{challenge.description}</p>
+
               <button
                 className="text-link"
-                onClick={() => setDetail(detail === c.id ? null : c.id)}
-                aria-expanded={detail === c.id}
+                onClick={() =>
+                  setDetail(
+                    detail === challenge.id
+                      ? null
+                      : challenge.id,
+                  )
+                }
+                aria-expanded={detail === challenge.id}
               >
-                {detail === c.id ? "Hide details" : "See challenge details"}{" "}
+                {detail === challenge.id
+                  ? "Hide details"
+                  : "See challenge details"}{" "}
                 <Icon name="arrow" size={16} />
               </button>
-              {detail === c.id && (
+
+              {detail === challenge.id && (
                 <div className="challenge-details">
                   <strong>
-                    {c.start} — {c.end}
+                    {challenge.start} — {challenge.end}
                   </strong>
+
                   <p>
-                    Log {resources[c.resource].label.toLowerCase()} usage for
-                    this period. Suggested limit: {c.target.toLocaleString()}{" "}
-                    {resources[c.resource].unit}.
+                    Log{" "}
+                    {resources[
+                      challenge.resource
+                    ].label.toLowerCase()}{" "}
+                    usage for this period. Suggested limit:{" "}
+                    {challenge.target.toLocaleString()}{" "}
+                    {resources[challenge.resource].unit}.
                   </p>
+
                   <p>
                     Recorded so far:{" "}
                     {totalFor(
                       records,
-                      c.resource,
-                      c.start,
-                      c.end,
+                      challenge.resource,
+                      challenge.start,
+                      challenge.end,
                     ).toLocaleString()}{" "}
-                    {resources[c.resource].unit}. Completion requires
-                    full-period data; automatic verification is a future
-                    feature.
+                    {resources[challenge.resource].unit}. Completion
+                    requires full-period data; automatic
+                    verification is a future feature.
                   </p>
-                  <small>Illustrative challenge and badge criteria.</small>
+
+                  <small>
+                    Illustrative challenge and badge criteria.
+                  </small>
                 </div>
               )}
+
               <button
-                className={`button ${active ? "secondary" : "primary"} full`}
-                onClick={() => void toggleChallenge(c.id, active)}
-                disabled={changing === c.id}
+                className={`button ${
+                  active ? "secondary" : "primary"
+                } full`}
+                onClick={() =>
+                  void toggleChallenge(challenge.id, active)
+                }
+                disabled={changing === challenge.id}
               >
-                {active ? (
+                {changing === challenge.id ? (
+                  "Updating..."
+                ) : active ? (
                   <>
                     <Icon name="check" size={17} />
                     Joined · Leave challenge
                   </>
                 ) : (
                   <>
-                    Join challenge <Icon name="plus" size={17} />
+                    Join challenge
+                    <Icon name="plus" size={17} />
                   </>
                 )}
               </button>
