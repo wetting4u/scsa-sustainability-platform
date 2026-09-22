@@ -12,54 +12,46 @@ import {
 } from "@/features/records/domain";
 
 import { GoalCard } from "@/features/goals/goals";
-import { createClient } from "@/lib/supabase/client";
+import { goalsApi } from "@/features/goals/client";
+import { recordsApi } from "@/features/records/client";
 export function Overview() {
   const [goals, setGoals] = useState<Goal[]>([]);
 
-const [records, setRecords] = useState<UsageRecord[]>([]);
-const [loading, setLoading] = useState(true);
-const [resource, setResource] = useState<Resource>("electricity");
+  const [records, setRecords] = useState<UsageRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [resource, setResource] = useState<Resource>("electricity");
 
-useEffect(() => {
-  async function loadRecords() {
-    const supabase = createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setLoading(false);
-      return;
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [g, r] = await Promise.all([goalsApi.list(), recordsApi.list()]);
+        if (!cancelled) {
+          setGoals(g.data);
+          setRecords(r.data);
+        }
+      } catch (e) {
+        if (!cancelled)
+          setError(
+            e instanceof Error ? e.message : "Unable to load dashboard.",
+          );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
-
-    const { data, error } = await supabase
-      .from("usage_records")
-      .select("id, resource, start_date, end_date, amount")
-      .eq("user_id", user.id)
-      .order("end_date", { ascending: true });
-
-    if (error) {
-      console.error(error);
-      setLoading(false);
-      return;
-    }
-
-    setRecords(
-      (data ?? []).map((record) => ({
-        id: record.id,
-        resource: record.resource as Resource,
-        start: record.start_date,
-        end: record.end_date,
-        amount: Number(record.amount),
-      })),
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (loading) return <p role="status">Loading dashboard...</p>;
+  if (error)
+    return (
+      <p role="alert" className="error">
+        {error}
+      </p>
     );
-
-    setLoading(false);
-  }
-
-  void loadRecords();
-}, []);
   const weeks = [
     ["01–07 Sep", "2026-09-01", "2026-09-07"],
     ["08–14 Sep", "2026-09-08", "2026-09-14"],
@@ -255,39 +247,4 @@ useEffect(() => {
       </div>
     </>
   );
-  useEffect(() => {
-  async function loadGoals() {
-    const supabase = createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("goals")
-      .select("id, title, resource, target, start_date, end_date")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setGoals(
-      (data ?? []).map((goal) => ({
-        id: goal.id,
-        title: goal.title,
-        resource: goal.resource as Resource,
-        target: Number(goal.target),
-        start: goal.start_date,
-        end: goal.end_date,
-      })),
-    );
-  }
-
-  void loadGoals();
-}, []);
 }

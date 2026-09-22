@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { Empty, Icon, PageHeading } from "@/components/ui";
-import { recordsApi } from "@/features/records/client";
+import { goalUsage } from "./domain";
 import {
   resources,
   type Goal,
@@ -11,20 +11,6 @@ import {
   type UsageRecord,
 } from "@/features/records/domain";
 import { goalsApi } from "./client";
-
-function calculateGoalUsage(
-  goal: Goal,
-  records: UsageRecord[],
-) {
-  return records
-    .filter(
-      (record) =>
-        record.resource === goal.resource &&
-        record.start >= goal.start &&
-        record.end <= goal.end,
-    )
-    .reduce((sum, record) => sum + record.amount, 0);
-}
 
 export function GoalCard({
   goal,
@@ -41,44 +27,13 @@ export function GoalCard({
   onDelete?: (id: string) => void;
   deleting?: boolean;
 }) {
-  const [total, setTotal] = useState(0);
-
-  useEffect(() => {
-    if (usageRecords !== undefined) {
-      setTotal(calculateGoalUsage(goal, usageRecords));
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadGoalUsage() {
-      try {
-        const result = await recordsApi.list();
-
-        if (!cancelled) {
-          setTotal(calculateGoalUsage(goal, result.data));
-        }
-      } catch (requestError) {
-        console.error(requestError);
-
-        if (!cancelled) {
-          setTotal(0);
-        }
-      }
-    }
-
-    void loadGoalUsage();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [goal, usageRecords]);
-
+  const usage =
+    goal.usage ??
+    (usageRecords === undefined ? undefined : goalUsage(goal, usageRecords));
+  const total = usage?.amount ?? 0;
   const percent =
-    goal.target > 0
-      ? Math.round((total / goal.target) * 100)
-      : 0;
-
+    usage?.percentUsed == null ? 0 : Math.round(usage.percentUsed);
+  const hasRecords = usage?.hasRecords === true;
   return (
     <article className={compact ? "goal-card compact" : "panel goal-card"}>
       <div className="goal-meta">
@@ -97,10 +52,10 @@ export function GoalCard({
 
       <div className="progress-label">
         <strong>
-          {total.toLocaleString()} / {goal.target.toLocaleString()}{" "}
-          {resources[goal.resource].unit}
+          {hasRecords ? total.toLocaleString() : "—"} /{" "}
+          {goal.target.toLocaleString()} {resources[goal.resource].unit}
         </strong>
-        <span>{percent}% used</span>
+        <span>{hasRecords ? `${percent}% used` : "No records"}</span>
       </div>
 
       <div className="progress-track">
@@ -117,9 +72,13 @@ export function GoalCard({
       {!compact && (
         <>
           <p className="caption">
-            {percent > 100
-              ? "Recorded usage exceeds this limit."
-              : "Below the limit so far. Incomplete records do not confirm savings."}
+            {!usage
+              ? "Usage unavailable."
+              : !hasRecords
+                ? "No records in this period. Completion is not confirmed."
+                : percent > 100
+                  ? "Recorded usage exceeds this limit."
+                  : "Below the limit so far. Incomplete records do not confirm savings."}
           </p>
 
           {(onEdit || onDelete) && (
@@ -154,7 +113,7 @@ export function GoalCard({
 
 export function Goals() {
   const [goals, setGoals] = useState<Goal[]>([]);
-  const [usageRecords, setUsageRecords] = useState<UsageRecord[]>([]);
+  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [show, setShow] = useState(false);
   const [editing, setEditing] = useState<Goal | null>(null);
@@ -169,13 +128,8 @@ export function Goals() {
       setPageError("");
 
       try {
-        const [goalsResult, recordsResult] = await Promise.all([
-          goalsApi.list(),
-          recordsApi.list(),
-        ]);
-
+        const goalsResult = await goalsApi.list();
         setGoals(goalsResult.data);
-        setUsageRecords(recordsResult.data);
       } catch (requestError) {
         setPageError(
           requestError instanceof Error
@@ -203,20 +157,14 @@ export function Goals() {
     setError("");
   }
 
-  async function handleGoalSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleGoalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
 
     const formData = new FormData(event.currentTarget);
     const resourceValue = String(formData.get("resource"));
 
-    if (
-      !Object.prototype.hasOwnProperty.call(
-        resources,
-        resourceValue,
-      )
-    ) {
+    if (!Object.prototype.hasOwnProperty.call(resources, resourceValue)) {
       setError("Choose a valid resource.");
       return;
     }
@@ -249,15 +197,14 @@ export function Goals() {
     setPageError("");
     setMessage("");
 
+    setSaving(true);
     try {
       if (editing) {
         const result = await goalsApi.update(editing.id, goal);
 
         setGoals((currentGoals) =>
           currentGoals.map((currentGoal) =>
-            currentGoal.id === editing.id
-              ? result.data
-              : currentGoal,
+            currentGoal.id === editing.id ? result.data : currentGoal,
           ),
         );
 
@@ -265,21 +212,28 @@ export function Goals() {
       } else {
         const result = await goalsApi.create(goal);
 
-        setGoals((currentGoals) => [
-          result.data,
-          ...currentGoals,
-        ]);
+        setGoals((currentGoals) => [result.data, ...currentGoals]);
 
         setMessage("Goal created.");
       }
 
       closeForm();
+      try {
+        const refreshed = await goalsApi.list();
+        setGoals(refreshed.data);
+      } catch {
+        setPageError(
+          "Goal saved, but usage could not be refreshed. Reload to try again.",
+        );
+      }
     } catch (requestError) {
       setError(
         requestError instanceof Error
           ? requestError.message
           : "Unable to save the goal.",
       );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -299,9 +253,7 @@ export function Goals() {
     try {
       await goalsApi.remove(id);
 
-      setGoals((currentGoals) =>
-        currentGoals.filter((goal) => goal.id !== id),
-      );
+      setGoals((currentGoals) => currentGoals.filter((goal) => goal.id !== id));
 
       setMessage("Goal deleted.");
     } catch (requestError) {
@@ -324,6 +276,7 @@ export function Goals() {
         action={
           <button
             className="button primary"
+            disabled={saving}
             onClick={() => openForm()}
           >
             <Icon name="plus" />
@@ -354,10 +307,7 @@ export function Goals() {
         <section className="panel form-panel">
           <h2>{editing ? "Edit goal" : "Create a household goal"}</h2>
 
-          <form
-            key={editing?.id ?? "new-goal"}
-            onSubmit={handleGoalSubmit}
-          >
+          <form key={editing?.id ?? "new-goal"} onSubmit={handleGoalSubmit}>
             <div className="form-grid">
               <label>
                 Goal name
@@ -424,13 +374,18 @@ export function Goals() {
             )}
 
             <div className="form-actions">
-              <button className="button primary" type="submit">
-                {editing ? "Save changes" : "Save goal"}
+              <button
+                className="button primary"
+                type="submit"
+                disabled={saving}
+              >
+                {saving ? "Saving..." : editing ? "Save changes" : "Save goal"}
               </button>
 
               <button
                 className="button secondary"
                 type="button"
+                disabled={saving}
                 onClick={closeForm}
               >
                 Cancel
@@ -452,7 +407,7 @@ export function Goals() {
           {goals.map((goal) => (
             <GoalCard
               goal={goal}
-              usageRecords={usageRecords}
+
               key={goal.id}
               onEdit={openForm}
               onDelete={(id) => {

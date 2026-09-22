@@ -27,24 +27,19 @@ export function Challenges() {
       setMembershipError("");
 
       try {
-        const [
-          challengesResult,
-          membershipsResult,
-          recordsResult,
-        ] = await Promise.all([
-          challengesApi.list(),
-          challengesApi.memberships(),
-          recordsApi.list(),
-        ]);
+        const [challengesResult, membershipsResult, recordsResult] =
+          await Promise.all([
+            challengesApi.list(),
+            challengesApi.memberships(),
+            recordsApi.list(),
+          ]);
 
         setChallenges(challengesResult.data);
         setJoined(membershipsResult.data);
         setRecords(recordsResult.data);
       } catch (error) {
         setMembershipError(
-          error instanceof Error
-            ? error.message
-            : "Unable to load challenges.",
+          error instanceof Error ? error.message : "Unable to load challenges.",
         );
       } finally {
         setLoading(false);
@@ -54,10 +49,8 @@ export function Challenges() {
     void loadChallengePage();
   }, []);
 
-  async function toggleChallenge(
-    challengeId: string,
-    active: boolean,
-  ) {
+  async function toggleChallenge(challengeId: string, active: boolean) {
+    if (changing) return;
     setChanging(challengeId);
     setMembershipError("");
 
@@ -65,16 +58,12 @@ export function Challenges() {
       if (active) {
         await challengesApi.leave(challengeId);
 
-        setJoined((current) =>
-          current.filter((id) => id !== challengeId),
-        );
+        setJoined((current) => current.filter((id) => id !== challengeId));
       } else {
         await challengesApi.join(challengeId);
 
         setJoined((current) =>
-          current.includes(challengeId)
-            ? current
-            : [...current, challengeId],
+          current.includes(challengeId) ? current : [...current, challengeId],
         );
       }
     } catch (error) {
@@ -98,9 +87,7 @@ export function Challenges() {
 
       <div className="welcome-banner challenge-banner">
         <div>
-          <span className="eyebrow">
-            PROGRESS OVER PERFECTION
-          </span>
+          <span className="eyebrow">PROGRESS OVER PERFECTION</span>
 
           <h2>
             Little changes.
@@ -111,8 +98,7 @@ export function Challenges() {
           <p>
             Join a challenge at your own pace.
             <br />
-            Your participation stays private unless you choose to
-            share.
+            Your participation stays private unless you choose to share.
           </p>
         </div>
 
@@ -132,9 +118,7 @@ export function Challenges() {
 
         <span>
           {joined.length} joined ·{" "}
-          {loading
-            ? "Loading challenges..."
-            : `${challenges.length} available`}
+          {loading ? "Loading challenges..." : `${challenges.length} available`}
         </span>
       </div>
 
@@ -143,20 +127,10 @@ export function Challenges() {
           const active = joined.includes(challenge.id);
 
           return (
-            <article
-              className="panel challenge-card"
-              key={challenge.id}
-            >
-              <div
-                className={`challenge-art ${challenge.resource}`}
-              >
+            <article className="panel challenge-card" key={challenge.id}>
+              <div className={`challenge-art ${challenge.resource}`}>
                 <Icon
-                  name={
-                    challenge.icon as
-                      | "sprout"
-                      | "bolt"
-                      | "drop"
-                  }
+                  name={challenge.icon as "sprout" | "bolt" | "drop"}
                   size={66}
                 />
 
@@ -172,11 +146,7 @@ export function Challenges() {
               <button
                 className="text-link"
                 onClick={() =>
-                  setDetail(
-                    detail === challenge.id
-                      ? null
-                      : challenge.id,
-                  )
+                  setDetail(detail === challenge.id ? null : challenge.id)
                 }
                 aria-expanded={detail === challenge.id}
               >
@@ -193,10 +163,7 @@ export function Challenges() {
                   </strong>
 
                   <p>
-                    Log{" "}
-                    {resources[
-                      challenge.resource
-                    ].label.toLowerCase()}{" "}
+                    Log {resources[challenge.resource].label.toLowerCase()}{" "}
                     usage for this period. Suggested limit:{" "}
                     {challenge.target.toLocaleString()}{" "}
                     {resources[challenge.resource].unit}.
@@ -210,25 +177,19 @@ export function Challenges() {
                       challenge.start,
                       challenge.end,
                     ).toLocaleString()}{" "}
-                    {resources[challenge.resource].unit}. Completion
-                    requires full-period data; automatic
-                    verification is a future feature.
+                    {resources[challenge.resource].unit}. Completion requires
+                    full-period data; automatic verification is a future
+                    feature.
                   </p>
 
-                  <small>
-                    Illustrative challenge and badge criteria.
-                  </small>
+                  <small>Illustrative challenge and badge criteria.</small>
                 </div>
               )}
 
               <button
-                className={`button ${
-                  active ? "secondary" : "primary"
-                } full`}
-                onClick={() =>
-                  void toggleChallenge(challenge.id, active)
-                }
-                disabled={changing === challenge.id}
+                className={`button ${active ? "secondary" : "primary"} full`}
+                onClick={() => void toggleChallenge(challenge.id, active)}
+                disabled={changing !== null}
               >
                 {changing === challenge.id ? (
                   "Updating..."
