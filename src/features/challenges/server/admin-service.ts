@@ -1,0 +1,412 @@
+import "server-only";
+
+import { createClient } from "@/lib/supabase/server";
+import {
+  resources,
+  type Resource,
+} from "@/features/records/domain";
+import type {
+  Challenge,
+  ChallengeInput,
+} from "../domain";
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+type ChallengeRow = {
+  id: string;
+  title: string;
+  description: string;
+  resource: Resource;
+  target: number | string;
+  start_date: string;
+  end_date: string;
+  tag: string;
+  icon: string;
+};
+
+type AdminResult =
+  | {
+      ok: true;
+      supabase: SupabaseClient;
+    }
+  | {
+      ok: false;
+      response: Response;
+    };
+
+type InputResult =
+  | {
+      ok: true;
+      value: ChallengeInput;
+    }
+  | {
+      ok: false;
+      response: Response;
+    };
+
+const noStoreHeaders = {
+  "Cache-Control": "no-store",
+};
+
+function apiError(
+  status: number,
+  code: string,
+  message: string,
+) {
+  return Response.json(
+    {
+      error: {
+        code,
+        message,
+      },
+    },
+    {
+      status,
+      headers: noStoreHeaders,
+    },
+  );
+}
+
+function mapChallenge(row: ChallengeRow): Challenge {
+  const days =
+    Math.round(
+      (Date.parse(row.end_date) -
+        Date.parse(row.start_date)) /
+        86400000,
+    ) + 1;
+
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    resource: row.resource,
+    target: Number(row.target),
+    start: row.start_date,
+    end: row.end_date,
+    tag: row.tag,
+    icon: row.icon,
+    duration: `${days} days`,
+  };
+}
+
+function isValidDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const date = new Date(`${value}T00:00:00Z`);
+
+  return (
+    !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value
+  );
+}
+
+async function requireAdmin(): Promise<AdminResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return {
+      ok: false,
+      response: apiError(
+        401,
+        "UNAUTHENTICATED",
+        "You must sign in before managing challenges.",
+      ),
+    };
+  }
+
+  const { data: accountRole, error: roleError } =
+    await supabase
+      .from("account_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+  if (roleError) {
+    return {
+      ok: false,
+      response: apiError(
+        500,
+        "ROLE_QUERY_FAILED",
+        "Unable to verify administrator access.",
+      ),
+    };
+  }
+
+  if (accountRole?.role !== "admin") {
+    return {
+      ok: false,
+      response: apiError(
+        403,
+        "FORBIDDEN",
+        "Administrator access is required.",
+      ),
+    };
+  }
+
+  return {
+    ok: true,
+    supabase,
+  };
+}
+
+async function readChallengeInput(
+  request: Request,
+): Promise<InputResult> {
+  let body: unknown;
+
+  try {
+    body = await request.json();
+  } catch {
+    return {
+      ok: false,
+      response: apiError(
+        400,
+        "INVALID_JSON",
+        "Enter valid challenge information.",
+      ),
+    };
+  }
+
+  if (
+    !body ||
+    typeof body !== "object" ||
+    Array.isArray(body)
+  ) {
+    return {
+      ok: false,
+      response: apiError(
+        400,
+        "INVALID_CHALLENGE",
+        "Enter valid challenge information.",
+      ),
+    };
+  }
+
+  const values = body as Record<string, unknown>;
+
+  const resource = String(
+    values.resource ?? "",
+  ) as Resource;
+
+  const input: ChallengeInput = {
+    title: String(values.title ?? "").trim(),
+    description: String(
+      values.description ?? "",
+    ).trim(),
+    resource,
+    target: Number(values.target),
+    start: String(values.start ?? ""),
+    end: String(values.end ?? ""),
+    tag: String(values.tag ?? "").trim(),
+    icon: String(values.icon ?? "").trim(),
+  };
+
+  const resourceExists =
+    Object.prototype.hasOwnProperty.call(
+      resources,
+      input.resource,
+    );
+
+  const iconExists = ["sprout", "bolt", "drop"].includes(
+    input.icon,
+  );
+
+  if (
+    !input.title ||
+    input.title.length > 100 ||
+    !input.description ||
+    input.description.length > 500 ||
+    !input.tag ||
+    input.tag.length > 50 ||
+    !resourceExists ||
+    !iconExists ||
+    !Number.isFinite(input.target) ||
+    input.target <= 0 ||
+    input.target > resources[input.resource].max ||
+    !isValidDate(input.start) ||
+    !isValidDate(input.end) ||
+    input.end < input.start
+  ) {
+    return {
+      ok: false,
+      response: apiError(
+        400,
+        "VALIDATION_ERROR",
+        "Enter valid challenge details, target and dates.",
+      ),
+    };
+  }
+
+  return {
+    ok: true,
+    value: input,
+  };
+}
+
+export async function createAdminChallenge(
+  request: Request,
+) {
+  const admin = await requireAdmin();
+
+  if (!admin.ok) {
+    return admin.response;
+  }
+
+  const input = await readChallengeInput(request);
+
+  if (!input.ok) {
+    return input.response;
+  }
+
+  const challenge = input.value;
+
+  const { data, error } = await admin.supabase
+    .from("challenges")
+    .insert({
+      title: challenge.title,
+      description: challenge.description,
+      resource: challenge.resource,
+      target: challenge.target,
+      start_date: challenge.start,
+      end_date: challenge.end,
+      tag: challenge.tag,
+      icon: challenge.icon,
+    })
+    .select(
+      "id, title, description, resource, target, start_date, end_date, tag, icon",
+    )
+    .single();
+
+  if (error) {
+    return apiError(
+      500,
+      "CHALLENGE_CREATE_FAILED",
+      "Unable to create the challenge.",
+    );
+  }
+
+  return Response.json(
+    {
+      data: mapChallenge(data as ChallengeRow),
+    },
+    {
+      status: 201,
+      headers: noStoreHeaders,
+    },
+  );
+}
+
+export async function updateAdminChallenge(
+  request: Request,
+  challengeId: string,
+) {
+  const admin = await requireAdmin();
+
+  if (!admin.ok) {
+    return admin.response;
+  }
+
+  const input = await readChallengeInput(request);
+
+  if (!input.ok) {
+    return input.response;
+  }
+
+  const challenge = input.value;
+
+  const { data, error } = await admin.supabase
+    .from("challenges")
+    .update({
+      title: challenge.title,
+      description: challenge.description,
+      resource: challenge.resource,
+      target: challenge.target,
+      start_date: challenge.start,
+      end_date: challenge.end,
+      tag: challenge.tag,
+      icon: challenge.icon,
+    })
+    .eq("id", challengeId)
+    .select(
+      "id, title, description, resource, target, start_date, end_date, tag, icon",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return apiError(
+      500,
+      "CHALLENGE_UPDATE_FAILED",
+      "Unable to update the challenge.",
+    );
+  }
+
+  if (!data) {
+    return apiError(
+      404,
+      "CHALLENGE_NOT_FOUND",
+      "Challenge not found.",
+    );
+  }
+
+  return Response.json(
+    {
+      data: mapChallenge(data as ChallengeRow),
+    },
+    {
+      status: 200,
+      headers: noStoreHeaders,
+    },
+  );
+}
+
+export async function deleteAdminChallenge(
+  challengeId: string,
+) {
+  const admin = await requireAdmin();
+
+  if (!admin.ok) {
+    return admin.response;
+  }
+
+  const { data, error } = await admin.supabase
+    .from("challenges")
+    .delete()
+    .eq("id", challengeId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return apiError(
+      500,
+      "CHALLENGE_DELETE_FAILED",
+      "Unable to delete the challenge.",
+    );
+  }
+
+  if (!data) {
+    return apiError(
+      404,
+      "CHALLENGE_NOT_FOUND",
+      "Challenge not found.",
+    );
+  }
+
+  return Response.json(
+    {
+      data: {
+        id: challengeId,
+      },
+    },
+    {
+      status: 200,
+      headers: noStoreHeaders,
+    },
+  );
+}

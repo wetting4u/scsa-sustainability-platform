@@ -1,9 +1,22 @@
-import { recordsNotConfigured } from "@/features/records/server/service";
+import {
+  deleteRecord,
+  updateRecord,
+} from "@/features/records/server/service";
 
-export function PATCH() {
-  return recordsNotConfigured();
+type RouteContext = {
+  params: Promise<{
+    recordId: string;
+  }>;
+};
+
+export async function PATCH(request: Request, context: RouteContext) {
+  const { recordId } = await context.params;
+
+  return updateRecord(request, recordId);
 }
 
-export function DELETE() {
-  return recordsNotConfigured();
+export async function DELETE(_request: Request, context: RouteContext) {
+  const { recordId } = await context.params;
+
+  return deleteRecord(recordId);
 }

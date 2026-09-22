@@ -1,13 +1,65 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon, PageHeading } from "@/components/ui";
-import { useDemo } from "@/features/demo/provider";
-import { resources, totalFor, type Resource } from "@/features/records/domain";
+
+import {
+  resources,
+  totalFor,
+  type Goal,
+  type Resource,
+  type UsageRecord,
+} from "@/features/records/domain";
+
 import { GoalCard } from "@/features/goals/goals";
+import { createClient } from "@/lib/supabase/client";
 export function Overview() {
-  const { records, goals } = useDemo();
-  const [resource, setResource] = useState<Resource>("electricity");
+  const [goals, setGoals] = useState<Goal[]>([]);
+
+const [records, setRecords] = useState<UsageRecord[]>([]);
+const [loading, setLoading] = useState(true);
+const [resource, setResource] = useState<Resource>("electricity");
+
+useEffect(() => {
+  async function loadRecords() {
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("usage_records")
+      .select("id, resource, start_date, end_date, amount")
+      .eq("user_id", user.id)
+      .order("end_date", { ascending: true });
+
+    if (error) {
+      console.error(error);
+      setLoading(false);
+      return;
+    }
+
+    setRecords(
+      (data ?? []).map((record) => ({
+        id: record.id,
+        resource: record.resource as Resource,
+        start: record.start_date,
+        end: record.end_date,
+        amount: Number(record.amount),
+      })),
+    );
+
+    setLoading(false);
+  }
+
+  void loadRecords();
+}, []);
   const weeks = [
     ["01–07 Sep", "2026-09-01", "2026-09-07"],
     ["08–14 Sep", "2026-09-08", "2026-09-14"],
@@ -203,4 +255,39 @@ export function Overview() {
       </div>
     </>
   );
+  useEffect(() => {
+  async function loadGoals() {
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("goals")
+      .select("id, title, resource, target, start_date, end_date")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setGoals(
+      (data ?? []).map((goal) => ({
+        id: goal.id,
+        title: goal.title,
+        resource: goal.resource as Resource,
+        target: Number(goal.target),
+        start: goal.start_date,
+        end: goal.end_date,
+      })),
+    );
+  }
+
+  void loadGoals();
+}, []);
 }

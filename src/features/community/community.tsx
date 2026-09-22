@@ -1,9 +1,43 @@
 "use client";
 import Link from "next/link";
 import { PageHeading, Icon } from "@/components/ui";
-import { useDemo } from "@/features/demo/provider";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 export function Community() {
-  const { analytics } = useDemo();
+  const [analytics, setAnalytics] = useState(false);
+const [loading, setLoading] = useState(true);
+
+useEffect(() => {
+  async function loadPreference() {
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("household_profiles")
+      .select("share_analytics")
+      .eq("user_id", user.id)
+      .single();
+
+    if (error) {
+      console.error(error);
+      setLoading(false);
+      return;
+    }
+
+    setAnalytics(Boolean(data.share_analytics));
+    setLoading(false);
+  }
+
+  void loadPreference();
+}, []);
   return (
     <>
       <PageHeading
@@ -53,8 +87,10 @@ export function Community() {
           <h2>Your contribution is your choice.</h2>
           <p>
             Community reporting is currently{" "}
-            <strong>{analytics ? "enabled" : "disabled"}</strong> in your demo
-            preferences. Personal goals and tracking work either way.
+            <strong>
+              {loading ? "loading" : analytics ? "enabled" : "disabled"}
+              </strong>{" "}
+              in your account preferences. Personal goals and tracking work either way.
           </p>
           <Link href="/settings" className="button secondary">
             Manage sharing <Icon name="arrow" size={16} />
