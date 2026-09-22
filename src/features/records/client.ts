@@ -1,7 +1,14 @@
 "use client";
+
 import type { UsageRecord } from "./domain";
 
-// Prepared for the future API integration. Records currently uses DemoProvider.
+type ApiErrorBody = {
+  error?: {
+    code?: string;
+    message?: string;
+  };
+};
+
 async function request<T>(
   path: string,
   method: string,
@@ -14,25 +21,40 @@ async function request<T>(
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
   });
+
+  const payload =
+    response.status === 204
+      ? undefined
+      : await response.json().catch(() => undefined);
+
   if (!response.ok) {
+    const errorBody = payload as ApiErrorBody | undefined;
+
     throw new Error(
-      `Records API request failed (${response.status}). Persistent records are not enabled yet.`,
+      errorBody?.error?.message ??
+        `Records API request failed (${response.status}).`,
     );
   }
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+
+  return payload as T;
 }
 
 export const recordsApi = {
   list: () => request<{ data: UsageRecord[] }>("/api/records", "GET"),
+
   create: (record: Omit<UsageRecord, "id">) =>
     request<{ data: UsageRecord }>("/api/records", "POST", record),
+
   update: (id: string, record: Omit<UsageRecord, "id">) =>
     request<{ data: UsageRecord }>(
       `/api/records/${encodeURIComponent(id)}`,
       "PATCH",
       record,
     ),
+
   remove: (id: string) =>
-    request<void>(`/api/records/${encodeURIComponent(id)}`, "DELETE"),
+    request<{ data: { id: string } }>(
+      `/api/records/${encodeURIComponent(id)}`,
+      "DELETE",
+    ),
 };

@@ -1,9 +1,12 @@
-import { recordsNotConfigured } from "@/features/records/server/service";
+import {
+  createRecord,
+  listRecords,
+} from "@/features/records/server/service";
 
-export function GET() {
-  return recordsNotConfigured();
+export async function GET() {
+  return listRecords();
 }
 
-export function POST() {
-  return recordsNotConfigured();
+export async function POST(request: Request) {
+  return createRecord(request);
 }
