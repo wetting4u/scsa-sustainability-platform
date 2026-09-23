@@ -44,14 +44,14 @@ export async function requireAdmin(): Promise<AdminAuthorization> {
     error: authError,
   } = await supabase.auth.getUser();
 
-  const authenticationFailure = getAdminAccessFailure({
-    authenticated: !authError && Boolean(user),
-  });
-
-  if (authenticationFailure) {
+    if (authError || !user) {
     return {
       ok: false,
-      response: accessDenied(authenticationFailure),
+      response: accessDenied({
+        status: 401,
+        code: "UNAUTHENTICATED",
+        message: "You must sign in before using administrator features.",
+      }),
     };
   }
 
