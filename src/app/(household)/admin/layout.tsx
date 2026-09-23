@@ -1,31 +1,17 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/features/admin/server/authorization";
 
 export default async function AdminLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const supabase = await createClient();
+  const authorization = await requireAdmin();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/sign-in");
-  }
-
-  const { data: accountRole, error } = await supabase
-    .from("account_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (error || accountRole?.role !== "admin") {
-    redirect("/overview");
+  if (!authorization.ok) {
+    redirect(authorization.response.status === 401 ? "/sign-in" : "/overview");
   }
 
   return <>{children}</>;

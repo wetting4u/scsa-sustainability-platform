@@ -1,6 +1,10 @@
 node_modules/
+.venv/
+__pycache__/
+*.py[cod]
 .pnpm-store/
 .next/
+.next-*/
 out/
 *.tsbuildinfo
 .env*
@@ -8,3 +12,4 @@ out/
 test-results/
 AGENTS.md
 *.pdf
+.DS_Store

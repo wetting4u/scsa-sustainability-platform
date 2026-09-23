@@ -1,4 +1,87 @@
-# Records API 接口约定
+# API 接口约定
+
+## BE-02 注册后资料初始化验证
+
+`GET /api/account/initialization` 使用当前 Supabase 登录会话检查新账号初始化结果，不接受浏览器提供的 `user_id`。
+
+成功响应为 HTTP 200：
+
+```json
+{
+  "data": {
+    "ready": true,
+    "checks": {
+      "profileExists": true,
+      "roleExists": true,
+      "householdRole": true,
+      "analyticsPrivate": true,
+      "leaderboardPrivate": true
+    }
+  }
+}
+```
+
+账号未登录或邮箱尚未确认时返回 401；数据库查询失败返回 500；缺少 `household_profiles`、`account_roles`，角色不是 `household`，或两个隐私开关不是 `false` 时返回 409 `ACCOUNT_INITIALIZATION_INCOMPLETE`。
+
+该接口只验证初始化结果，不使用管理员密钥补建资料或修改角色。初始化由数据库维护者提供的 Auth trigger 完成。
+
+## BE-03 Profile GET/PATCH API
+
+`GET /api/profile` 使用当前 Supabase 登录会话返回本人的家庭资料：
+
+```json
+{
+  "data": {
+    "displayName": "Green household",
+    "householdSize": 3,
+    "shareAnalytics": false,
+    "displayLeaderboard": false
+  }
+}
+```
+
+`PATCH /api/profile` 接受上述字段的任意非空子集。`displayName` 去除首尾空白后必须为 1–60 个字符；`householdSize` 必须是 1–20 的整数；两个隐私字段必须是 JSON boolean。
+
+接口拒绝 `user_id`、`userId`、`role`、`pseudonym` 和其他未知字段。用户 ID 只来自验证后的 Cookie Session，并且数据库 RLS 再次限制只能读取或修改本人记录。未登录返回 401，非法 JSON 或字段返回 400，初始化资料不存在返回 404，数据库错误返回 500。成功 GET/PATCH 均返回 200，并设置 `Cache-Control: no-store`。
+
+## BE-04 管理员授权
+
+所有 `/api/admin/*` 服务在读取请求内容或执行高权限操作前调用共用的 `requireAdmin()`。该工具只信任 Supabase 验证后的 Cookie Session，并从 `account_roles` 查询当前用户角色。
+
+- 未登录：HTTP 401 `UNAUTHENTICATED`。
+- 已登录但角色缺失或不是 `admin`：HTTP 403 `FORBIDDEN`。
+- 角色查询失败：HTTP 500 `ROLE_CHECK_FAILED`，不向客户端暴露数据库详情。
+- 已验证管理员：将请求级用户会话客户端和可信 `userId` 交给后续服务。
+
+管理员页面布局也使用同一工具：未登录跳转 `/sign-in`，非管理员或角色检查失败跳转 `/overview`。页面隐藏或 Proxy 不能替代各个管理 API 的服务端检查。
+
+## BE-05 Admin Users API
+
+所有接口先执行 BE-04 `requireAdmin()`，并使用仅存在于服务端的
+`SUPABASE_SECRET_KEY` 创建 Supabase Admin client。普通家庭账号不能调用这些接口。
+
+| 方法   | 地址                       | 行为                                                  |
+| ------ | -------------------------- | ----------------------------------------------------- |
+| GET    | `/api/admin/users`         | 列出账号、家庭名称、家庭人数、角色、状态和创建时间    |
+| POST   | `/api/admin/users`         | 创建已确认的普通家庭账号，无需邮箱验证即可立即登录    |
+| PATCH  | `/api/admin/users/:userId` | 只允许修改邮箱、家庭名称、家庭人数和启用状态          |
+| DELETE | `/api/admin/users/:userId` | 永久删除普通家庭账号及设置了 cascade 的数据库关联资料 |
+
+POST 必须提供 `email`、`password`、`householdName` 和 `householdSize`。密码沿用 BE-01
+规则：至少 8 位，并包含大写字母、小写字母、数字和特殊字符。服务端调用 Admin Auth
+时设置 `email_confirm: true`，因此不会发送注册验证码或确认链接。
+
+PATCH 只接受 `email`、`householdName`、`householdSize`、`disabled` 的非空子集；
+`role`、`password`、所有者字段、隐私字段以及所有未知字段均返回 400。BE-05 不提供任意
+密码重置或管理员角色编辑接口，也不读取家庭水、电、垃圾原始记录。
+
+管理员角色账号不能被禁用或删除，当前管理员也不能删除自己。DELETE 是明确选择的硬删除，
+成功返回 200；页面执行前会提示该操作不可恢复。账号不存在返回 404，重复邮箱返回 409，
+其他 Auth 或资料查询失败返回安全的 500 错误。所有响应均设置 `Cache-Control: no-store`。
+服务端未配置 secret key 时返回 503 `ADMIN_SERVICE_UNAVAILABLE`，不会把环境变量详情或
+运行时堆栈暴露给页面。
+
+## Records API
 
 以下成功响应属于下一阶段目标，并非已经完成的功能。
 目前 GET、POST、PATCH、DELETE 都返回 HTTP 501：

@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { adminUsersApi } from "@/features/admin-users/client";
 import type { AdminManagedUser } from "@/features/admin-users/domain";
@@ -43,9 +39,7 @@ export default function AdminUsersPage() {
     void loadUsers();
   }, []);
 
-  async function handleCreateUser(
-    event: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const form = event.currentTarget;
@@ -57,13 +51,9 @@ export default function AdminUsersPage() {
 
     const password = String(formData.get("password") ?? "");
 
-    const householdName = String(
-      formData.get("householdName") ?? "",
-    ).trim();
+    const householdName = String(formData.get("householdName") ?? "").trim();
 
-    const householdSize = Number(
-      formData.get("householdSize"),
-    );
+    const householdSize = Number(formData.get("householdSize"));
 
     setCreating(true);
     setMessage("");
@@ -77,10 +67,7 @@ export default function AdminUsersPage() {
         householdSize,
       });
 
-      setUsers((currentUsers) => [
-        result.data,
-        ...currentUsers,
-      ]);
+      setUsers((currentUsers) => [result.data, ...currentUsers]);
 
       setMessage(`${result.data.email} has been created.`);
       form.reset();
@@ -96,9 +83,7 @@ export default function AdminUsersPage() {
   }
 
   async function toggleUserStatus(userId: string) {
-    const selectedUser = users.find(
-      (user) => user.id === userId,
-    );
+    const selectedUser = users.find((user) => user.id === userId);
 
     if (!selectedUser || selectedUser.role === "admin") {
       return;
@@ -143,9 +128,7 @@ export default function AdminUsersPage() {
   }
 
   async function editUser(userId: string) {
-    const currentUser = users.find(
-      (user) => user.id === userId,
-    );
+    const currentUser = users.find((user) => user.id === userId);
 
     if (!currentUser || currentUser.role === "admin") {
       return;
@@ -183,9 +166,7 @@ export default function AdminUsersPage() {
     const householdSize = Number(newHouseholdSize);
 
     if (!email || !householdName) {
-      window.alert(
-        "Email and household name cannot be empty.",
-      );
+      window.alert("Email and household name cannot be empty.");
       return;
     }
 
@@ -194,9 +175,7 @@ export default function AdminUsersPage() {
       householdSize < 1 ||
       householdSize > 20
     ) {
-      window.alert(
-        "Household size must be a whole number between 1 and 20.",
-      );
+      window.alert("Household size must be a whole number between 1 and 20.");
       return;
     }
 
@@ -237,9 +216,7 @@ export default function AdminUsersPage() {
   }
 
   async function deleteUser(userId: string) {
-    const selectedUser = users.find(
-      (user) => user.id === userId,
-    );
+    const selectedUser = users.find((user) => user.id === userId);
 
     if (!selectedUser || selectedUser.role === "admin") {
       return;
@@ -284,8 +261,7 @@ export default function AdminUsersPage() {
       user.householdName.toLowerCase().includes(keyword);
 
     const matchesStatus =
-      statusFilter === "all" ||
-      user.status === statusFilter;
+      statusFilter === "all" || user.status === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
@@ -309,16 +285,16 @@ export default function AdminUsersPage() {
         <h1>Manage users</h1>
 
         <p>
-          Create household accounts and review their current
-          account status.
+          Create household accounts and review their current account status.
         </p>
 
         <section className="panel form-panel">
           <h2>Create household user</h2>
 
           <p>
-            New accounts are created as ordinary household users.
-            The administrator account remains protected.
+            New accounts are created as confirmed ordinary household users and
+            can sign in immediately. The administrator account remains
+            protected.
           </p>
 
           <form onSubmit={handleCreateUser}>
@@ -339,8 +315,8 @@ export default function AdminUsersPage() {
                   name="password"
                   type="password"
                   minLength={8}
-                  pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}"
-                  title="Use at least 8 characters with uppercase, lowercase and a special character."
+                  pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+                  title="Use at least 8 characters with uppercase, lowercase, a number and a special character."
                   required
                 />
               </label>
@@ -371,8 +347,9 @@ export default function AdminUsersPage() {
             </div>
 
             <p className="caption">
-              Passwords require at least 8 characters, uppercase
-              and lowercase letters, and a special character.
+              Passwords require at least 8 characters, uppercase and lowercase
+              letters, a number, and a special character. No verification email
+              is required for administrator-created accounts.
             </p>
 
             <div className="form-actions">
@@ -425,9 +402,7 @@ export default function AdminUsersPage() {
                 type="search"
                 placeholder="Search by email or household..."
                 value={searchTerm}
-                onChange={(event) =>
-                  setSearchTerm(event.target.value)
-                }
+                onChange={(event) => setSearchTerm(event.target.value)}
                 style={{
                   width: "100%",
                   padding: "10px 12px",
@@ -458,10 +433,7 @@ export default function AdminUsersPage() {
                   value={statusFilter}
                   onChange={(event) =>
                     setStatusFilter(
-                      event.target.value as
-                        | "all"
-                        | "active"
-                        | "disabled",
+                      event.target.value as "all" | "active" | "disabled",
                     )
                   }
                   style={{
@@ -516,29 +488,23 @@ export default function AdminUsersPage() {
                         color: "#6b746b",
                       }}
                     >
-                      No users found. Try a different email or
-                      household name.
+                      No users found. Try a different email or household name.
                     </td>
                   </tr>
                 )}
 
                 {!loading &&
                   filteredUsers.map((user) => {
-                    const protectedAdmin =
-                      user.role === "admin";
+                    const protectedAdmin = user.role === "admin";
                     const working = workingId === user.id;
 
                     return (
                       <tr key={user.id}>
                         <td>{user.email}</td>
-                        <td>
-                          {user.householdName || "Unnamed household"}
-                        </td>
+                        <td>{user.householdName || "Unnamed household"}</td>
                         <td>{user.householdSize}</td>
                         <td>
-                          {protectedAdmin
-                            ? "Administrator"
-                            : "Household"}
+                          {protectedAdmin ? "Administrator" : "Household"}
                         </td>
                         <td>
                           <span
@@ -550,9 +516,7 @@ export default function AdminUsersPage() {
                               fontWeight: 600,
                             }}
                           >
-                            {user.status === "active"
-                              ? "Active"
-                              : "Disabled"}
+                            {user.status === "active" ? "Active" : "Disabled"}
                           </span>
                         </td>
 
@@ -574,9 +538,7 @@ export default function AdminUsersPage() {
                                 className="button secondary"
                                 type="button"
                                 disabled={working}
-                                onClick={() =>
-                                  void toggleUserStatus(user.id)
-                                }
+                                onClick={() => void toggleUserStatus(user.id)}
                               >
                                 {working
                                   ? "Updating..."
@@ -589,9 +551,7 @@ export default function AdminUsersPage() {
                                 className="button secondary"
                                 type="button"
                                 disabled={working}
-                                onClick={() =>
-                                  void editUser(user.id)
-                                }
+                                onClick={() => void editUser(user.id)}
                               >
                                 Edit user
                               </button>
@@ -600,9 +560,7 @@ export default function AdminUsersPage() {
                                 className="button secondary"
                                 type="button"
                                 disabled={working}
-                                onClick={() =>
-                                  void deleteUser(user.id)
-                                }
+                                onClick={() => void deleteUser(user.id)}
                                 style={{
                                   color: "#9d332c",
                                   borderColor: "#d9aaa5",

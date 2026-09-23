@@ -3,8 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseConfig } from "./config";
 
-// Use from Route Handlers or Server Actions where cookies can be written.
-// Add session-refresh Proxy before introducing authenticated Server Components.
+// Use from Server Components, Route Handlers, or Server Actions. The request
+// proxy refreshes sessions because Server Components cannot write cookies.
 export async function createClient() {
   const { url, key } = getSupabaseConfig();
   const cookieStore = await cookies();
@@ -21,6 +21,6 @@ export async function createClient() {
           // Server Component 中不能直接修改 Cookie，忽略这里即可
         }
       },
-      },
+    },
   });
 }

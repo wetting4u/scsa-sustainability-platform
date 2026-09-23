@@ -3,208 +3,166 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Icon, PageHeading } from "@/components/ui";
+import { profileApi } from "./client";
 export function Settings() {
-const [analytics, setAnalytics] = useState(false);
-const [leaderboard, setLeaderboard] = useState(false);
-const [household, setHousehold] = useState("");
-const [householdSize, setHouseholdSize] = useState(1);
+  const [analytics, setAnalytics] = useState(false);
+  const [leaderboard, setLeaderboard] = useState(false);
+  const [household, setHousehold] = useState("");
+  const [householdSize, setHouseholdSize] = useState(1);
   const [message, setMessage] = useState("");
   const router = useRouter();
-const [saving, setSaving] = useState(false);
-const [savingPrivacy, setSavingPrivacy] = useState(false);
-const [changingPassword, setChangingPassword] = useState(false);
-const [passwordError, setPasswordError] = useState("");
-const [passwordMessage, setPasswordMessage] = useState("");
-const [profileUpdated, setProfileUpdated] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [profileUpdated, setProfileUpdated] = useState(false);
 
-useEffect(() => {
-  async function loadProfile() {
-    const supabase = createClient();
+  useEffect(() => {
+    let active = true;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    async function loadProfile() {
+      try {
+        const { data } = await profileApi.get();
 
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("household_profiles")
-      .select("display_name, share_analytics, display_leaderboard").select(
-      "display_name, household_size, share_analytics, display_leaderboard",
-      )
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-      if (data) {
-        if (data.display_name) {
-          setHousehold(data.display_name);
+        if (active) {
+          setHousehold(data.displayName);
+          setHouseholdSize(data.householdSize);
+          setAnalytics(data.shareAnalytics);
+          setLeaderboard(data.displayLeaderboard);
         }
-
-        setHouseholdSize(Number(data.household_size ?? 1));
-        setAnalytics(Boolean(data.share_analytics));
-        setLeaderboard(Boolean(data.display_leaderboard));
+      } catch (profileError) {
+        if (active) {
+          setMessage(
+            profileError instanceof Error
+              ? profileError.message
+              : "Unable to load your household profile.",
+          );
+        }
       }
-  }
-
-  void loadProfile();
-}, [setAnalytics, setHousehold, setLeaderboard]);
-
-async function handleProfileSubmit(
-  event: FormEvent<HTMLFormElement>,
-) {
-  event.preventDefault();
-
-  const formData = new FormData(event.currentTarget);
-
-  const value = String(
-  formData.get("household") ?? "",
-  ).trim();
-
-  const size = Number(formData.get("householdSize"));
-
-  if (!value) {
-    setMessage("Please enter a household name.");
-    return;
-  }
-  if (
-  !Number.isInteger(size) ||
-  size < 1 ||
-  size > 20
-  ) {
-  setMessage(
-    "Household size must be a whole number between 1 and 20.",
-  );
-  return;
-  }
-
-setSaving(true);
-setMessage("");
-setProfileUpdated(false);
-
-  setSaving(true);
-  setMessage("");
-
-  const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    setMessage("Please sign in again.");
-    setSaving(false);
-    return;
-  }
-
-  const { error } = await supabase
-    .from("household_profiles")
-    .update({
-      display_name: value,
-      household_size: size,
-    })
-    .eq("user_id", user.id);
-
-  if (error) {
-    setMessage(error.message);
-  } else {
-    setHousehold(value);
-    setHouseholdSize(size);
-    setMessage("");
-    setProfileUpdated(true);
-    router.refresh();
-  }
-
-  setSaving(false);
-}
-async function updatePrivacyPreference(
-  field: "share_analytics" | "display_leaderboard",
-  value: boolean,
-) {
-  setSavingPrivacy(true);
-  setMessage("");
-
-  const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    setMessage("Please sign in again.");
-    setSavingPrivacy(false);
-    return;
-  }
-
-  const { error } = await supabase
-    .from("household_profiles")
-    .update({ [field]: value })
-    .eq("user_id", user.id);
-
-  if (error) {
-    setMessage(error.message);
-  } else {
-    if (field === "share_analytics") {
-      setAnalytics(value);
-    } else {
-      setLeaderboard(value);
     }
 
-    setMessage("Privacy preference updated.");
+    void loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+
+    const value = String(formData.get("household") ?? "").trim();
+
+    const size = Number(formData.get("householdSize"));
+
+    if (!value) {
+      setMessage("Please enter a household name.");
+      return;
+    }
+    if (!Number.isInteger(size) || size < 1 || size > 20) {
+      setMessage("Household size must be a whole number between 1 and 20.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+    setProfileUpdated(false);
+
+    try {
+      const { data } = await profileApi.update({
+        displayName: value,
+        householdSize: size,
+      });
+
+      setHousehold(data.displayName);
+      setHouseholdSize(data.householdSize);
+      setAnalytics(data.shareAnalytics);
+      setLeaderboard(data.displayLeaderboard);
+      setProfileUpdated(true);
+      router.refresh();
+    } catch (profileError) {
+      setMessage(
+        profileError instanceof Error
+          ? profileError.message
+          : "Unable to update your household profile.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
+  async function updatePrivacyPreference(
+    field: "shareAnalytics" | "displayLeaderboard",
+    value: boolean,
+  ) {
+    setSavingPrivacy(true);
+    setMessage("");
 
-  setSavingPrivacy(false);
-}
-async function handlePasswordSubmit(
-  event: FormEvent<HTMLFormElement>,
-) {
-  event.preventDefault();
+    try {
+      const { data } = await profileApi.update({ [field]: value });
 
-  const form = event.currentTarget;
-  const formData = new FormData(form);
-
-  const password = String(formData.get("password") ?? "");
-  const confirmPassword = String(
-    formData.get("confirmPassword") ?? "",
-  );
-
-  setPasswordError("");
-  setPasswordMessage("");
-
-  const validPassword =
-    password.length >= 8 &&
-    /[a-z]/.test(password) &&
-    /[A-Z]/.test(password) &&
-    /[^A-Za-z0-9]/.test(password);
-
-  if (!validPassword) {
-    setPasswordError(
-      "Password must contain at least 8 characters, uppercase and lowercase letters, and a special character.",
-    );
-    return;
+      setAnalytics(data.shareAnalytics);
+      setLeaderboard(data.displayLeaderboard);
+      setMessage("Privacy preference updated.");
+    } catch (profileError) {
+      setMessage(
+        profileError instanceof Error
+          ? profileError.message
+          : "Unable to update your privacy preference.",
+      );
+    } finally {
+      setSavingPrivacy(false);
+    }
   }
+  async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-  if (password !== confirmPassword) {
-    setPasswordError("The two passwords do not match.");
-    return;
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const password = String(formData.get("password") ?? "");
+    const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+    setPasswordError("");
+    setPasswordMessage("");
+
+    const validPassword =
+      password.length >= 8 &&
+      /[a-z]/.test(password) &&
+      /[A-Z]/.test(password) &&
+      /[^A-Za-z0-9]/.test(password);
+
+    if (!validPassword) {
+      setPasswordError(
+        "Password must contain at least 8 characters, uppercase and lowercase letters, and a special character.",
+      );
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setPasswordError("The two passwords do not match.");
+      return;
+    }
+
+    setChangingPassword(true);
+
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.updateUser({
+      password,
+    });
+
+    if (error) {
+      setPasswordError(error.message);
+    } else {
+      form.reset();
+      setPasswordMessage("Password updated successfully.");
+    }
+
+    setChangingPassword(false);
   }
-
-  setChangingPassword(true);
-
-  const supabase = createClient();
-
-  const { error } = await supabase.auth.updateUser({
-    password,
-  });
-
-  if (error) {
-    setPasswordError(error.message);
-  } else {
-    form.reset();
-    setPasswordMessage("Password updated successfully.");
-  }
-
-  setChangingPassword(false);
-}
   return (
     <>
       <PageHeading
@@ -214,15 +172,14 @@ async function handlePasswordSubmit(
       />
       <div className="notice">
         <Icon name="shield" />
-          Your household profile and privacy preferences are securely saved to your account.
+        Your household profile and privacy preferences are securely saved to
+        your account.
       </div>
       <div className="settings-grid">
         <section className="panel">
           <h2>Household profile</h2>
           <p>A friendly name for your personal dashboard.</p>
-          <form
-            onSubmit={handleProfileSubmit}
-          >
+          <form onSubmit={handleProfileSubmit}>
             <label>
               Household name
               <input
@@ -233,7 +190,7 @@ async function handlePasswordSubmit(
                 required
               />
             </label>
-                        <label>
+            <label>
               Household size
               <input
                 key={`household-size-${householdSize}`}
@@ -247,13 +204,10 @@ async function handlePasswordSubmit(
               />
             </label>
             <p className="caption">
-              You can update this name at any time. No address or personal details are required.
+              You can update this name at any time. No address or personal
+              details are required.
             </p>
-            <button
-              className="button primary"
-              type="submit"
-              disabled={saving}
-            >
+            <button className="button primary" type="submit" disabled={saving}>
               {saving ? "Saving..." : "Save profile"}
             </button>
           </form>
@@ -262,8 +216,8 @@ async function handlePasswordSubmit(
           <h2>Change password</h2>
 
           <p>
-            Enter a new password for your account. No confirmation
-            email is required.
+            Enter a new password for your account. No confirmation email is
+            required.
           </p>
 
           <form onSubmit={handlePasswordSubmit}>
@@ -279,8 +233,8 @@ async function handlePasswordSubmit(
             </label>
 
             <p className="caption">
-              Use at least 8 characters with uppercase and lowercase
-              letters and a special character.
+              Use at least 8 characters with uppercase and lowercase letters and
+              a special character.
             </p>
 
             <label>
@@ -311,13 +265,11 @@ async function handlePasswordSubmit(
               type="submit"
               disabled={changingPassword}
             >
-              {changingPassword
-                ? "Updating password..."
-                : "Update password"}
+              {changingPassword ? "Updating password..." : "Update password"}
             </button>
           </form>
         </section>
-        
+
         <section className="panel">
           <h2>Privacy by default</h2>
           <p>
@@ -339,9 +291,8 @@ async function handlePasswordSubmit(
               type="button"
               disabled={savingPrivacy}
               onClick={() =>
-                void updatePrivacyPreference("share_analytics", !analytics)
+                void updatePrivacyPreference("shareAnalytics", !analytics)
               }
-              
             >
               <span />
             </button>
@@ -362,10 +313,7 @@ async function handlePasswordSubmit(
               type="button"
               disabled={savingPrivacy}
               onClick={() =>
-                void updatePrivacyPreference(
-                  "display_leaderboard",
-                  !leaderboard,
-                )
+                void updatePrivacyPreference("displayLeaderboard", !leaderboard)
               }
             >
               <span />
@@ -385,50 +333,48 @@ async function handlePasswordSubmit(
         {message}
       </p>
       {profileUpdated && (
-  <div
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="profile-updated-title"
-    style={{
-      position: "fixed",
-      inset: 0,
-      zIndex: 1000,
-      display: "grid",
-      placeItems: "center",
-      padding: "24px",
-      background: "rgba(15, 35, 27, 0.45)",
-      backdropFilter: "blur(3px)",
-    }}
-  >
-    <section
-      className="panel"
-      style={{
-        width: "100%",
-        maxWidth: "420px",
-        textAlign: "center",
-      }}
-    >
-      <Icon name="check" size={42} />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-updated-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            display: "grid",
+            placeItems: "center",
+            padding: "24px",
+            background: "rgba(15, 35, 27, 0.45)",
+            backdropFilter: "blur(3px)",
+          }}
+        >
+          <section
+            className="panel"
+            style={{
+              width: "100%",
+              maxWidth: "420px",
+              textAlign: "center",
+            }}
+          >
+            <Icon name="check" size={42} />
 
-      <h2 id="profile-updated-title">
-        Profile updated
-      </h2>
+            <h2 id="profile-updated-title">Profile updated</h2>
 
-      <p>
-        Your household name and household size have been
-        saved successfully.
-      </p>
+            <p>
+              Your household name and household size have been saved
+              successfully.
+            </p>
 
-      <button
-        type="button"
-        className="button primary"
-        onClick={() => setProfileUpdated(false)}
-      >
-        Done
-      </button>
-    </section>
-  </div>
-  )}
+            <button
+              type="button"
+              className="button primary"
+              onClick={() => setProfileUpdated(false)}
+            >
+              Done
+            </button>
+          </section>
+        </div>
+      )}
     </>
   );
 }

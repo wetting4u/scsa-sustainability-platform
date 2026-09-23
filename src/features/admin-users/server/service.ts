@@ -1,10 +1,11 @@
 import "server-only";
 
+import { requireAdmin } from "@/features/admin/server/authorization";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import type {
-  AdminManagedUser,
-  CreateAdminUserInput,
+import {
+  validateCreateAdminUser,
+  validateUpdateAdminUser,
+  type AdminManagedUser,
 } from "../domain";
 
 const noStoreHeaders = {
@@ -26,59 +27,38 @@ function apiError(status: number, code: string, message: string) {
   );
 }
 
-async function requireAdmin(): Promise<
-  { userId: string } | Response
-> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before managing users.",
-    );
+function getAdminClient() {
+  try {
+    return {
+      ok: true as const,
+      client: createAdminClient(),
+    };
+  } catch {
+    return {
+      ok: false as const,
+      response: apiError(
+        503,
+        "ADMIN_SERVICE_UNAVAILABLE",
+        "Administrator account management is not configured.",
+      ),
+    };
   }
-
-  const { data: roleRecord, error: roleError } = await supabase
-    .from("account_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (roleError) {
-    return apiError(
-      500,
-      "ROLE_CHECK_FAILED",
-      "Unable to verify administrator access.",
-    );
-  }
-
-  if (roleRecord?.role !== "admin") {
-    return apiError(
-      403,
-      "FORBIDDEN",
-      "Administrator access is required.",
-    );
-  }
-
-  return {
-    userId: user.id,
-  };
 }
 
 export async function listAdminUsers() {
   const authorization = await requireAdmin();
 
-  if (authorization instanceof Response) {
-    return authorization;
+  if (!authorization.ok) {
+    return authorization.response;
   }
 
-  const admin = createAdminClient();
+  const adminResult = getAdminClient();
+
+  if (!adminResult.ok) {
+    return adminResult.response;
+  }
+
+  const admin = adminResult.client;
 
   const { data: authData, error: usersError } =
     await admin.auth.admin.listUsers({
@@ -87,11 +67,7 @@ export async function listAdminUsers() {
     });
 
   if (usersError) {
-    return apiError(
-      500,
-      "USERS_QUERY_FAILED",
-      "Unable to load users.",
-    );
+    return apiError(500, "USERS_QUERY_FAILED", "Unable to load users.");
   }
 
   const authUsers = authData.users;
@@ -113,10 +89,7 @@ export async function listAdminUsers() {
       .from("household_profiles")
       .select("user_id, display_name, household_size")
       .in("user_id", userIds),
-    admin
-      .from("account_roles")
-      .select("user_id, role")
-      .in("user_id", userIds),
+    admin.from("account_roles").select("user_id, role").in("user_id", userIds),
   ]);
 
   if (profilesResult.error || rolesResult.error) {
@@ -128,10 +101,7 @@ export async function listAdminUsers() {
   }
 
   const profiles = new Map(
-    (profilesResult.data ?? []).map((profile) => [
-      profile.user_id,
-      profile,
-    ]),
+    (profilesResult.data ?? []).map((profile) => [profile.user_id, profile]),
   );
 
   const roles = new Map(
@@ -143,9 +113,7 @@ export async function listAdminUsers() {
 
   const users: AdminManagedUser[] = authUsers.map((user) => {
     const profile = profiles.get(user.id);
-    const bannedUntil = user.banned_until
-      ? Date.parse(user.banned_until)
-      : 0;
+    const bannedUntil = user.banned_until ? Date.parse(user.banned_until) : 0;
 
     return {
       id: user.id,
@@ -171,8 +139,8 @@ export async function listAdminUsers() {
 export async function createAdminUser(request: Request) {
   const authorization = await requireAdmin();
 
-  if (authorization instanceof Response) {
-    return authorization;
+  if (!authorization.ok) {
+    return authorization.response;
   }
 
   let body: unknown;
@@ -180,80 +148,30 @@ export async function createAdminUser(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return apiError(
-      400,
-      "INVALID_JSON",
-      "Enter valid user information.",
-    );
+    return apiError(400, "INVALID_JSON", "Enter valid user information.");
   }
 
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return apiError(
-      400,
-      "INVALID_USER",
-      "Enter valid user information.",
-    );
+  const validation = validateCreateAdminUser(body);
+
+  if (validation.error) {
+    return apiError(400, validation.error.code, validation.error.message);
   }
 
-  const values = body as Record<string, unknown>;
+  const input = validation.data;
 
-  const input: CreateAdminUserInput = {
-    email: String(values.email ?? "").trim().toLowerCase(),
-    password: String(values.password ?? ""),
-    householdName: String(values.householdName ?? "").trim(),
-    householdSize: Number(values.householdSize),
-  };
+  const adminResult = getAdminClient();
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
-    return apiError(
-      400,
-      "INVALID_EMAIL",
-      "Enter a valid email address.",
-    );
+  if (!adminResult.ok) {
+    return adminResult.response;
   }
 
-  const passwordIsValid =
-    input.password.length >= 8 &&
-    /[a-z]/.test(input.password) &&
-    /[A-Z]/.test(input.password) &&
-    /[^A-Za-z0-9]/.test(input.password);
+  const admin = adminResult.client;
 
-  if (!passwordIsValid) {
-    return apiError(
-      400,
-      "INVALID_PASSWORD",
-      "Password must contain at least 8 characters, uppercase and lowercase letters, and a special character.",
-    );
-  }
-
-  if (!input.householdName || input.householdName.length > 60) {
-    return apiError(
-      400,
-      "INVALID_HOUSEHOLD_NAME",
-      "Enter a household name of no more than 60 characters.",
-    );
-  }
-
-  if (
-    !Number.isInteger(input.householdSize) ||
-    input.householdSize < 1 ||
-    input.householdSize > 20
-  ) {
-    return apiError(
-      400,
-      "INVALID_HOUSEHOLD_SIZE",
-      "Household size must be between 1 and 20.",
-    );
-  }
-
-  const admin = createAdminClient();
-
-  const { data, error: createError } =
-    await admin.auth.admin.createUser({
-      email: input.email,
-      password: input.password,
-      email_confirm: true,
-    });
+  const { data, error: createError } = await admin.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+  });
 
   if (createError || !data.user) {
     const duplicateEmail =
@@ -268,15 +186,17 @@ export async function createAdminUser(request: Request) {
     );
   }
 
-  const { error: profileError } = await admin
+  const { data: profile, error: profileError } = await admin
     .from("household_profiles")
     .update({
       display_name: input.householdName,
       household_size: input.householdSize,
     })
-    .eq("user_id", data.user.id);
+    .eq("user_id", data.user.id)
+    .select("user_id")
+    .maybeSingle();
 
-  if (profileError) {
+  if (profileError || !profile) {
     await admin.auth.admin.deleteUser(data.user.id);
 
     return apiError(
@@ -306,14 +226,11 @@ export async function createAdminUser(request: Request) {
     },
   );
 }
-export async function updateAdminUser(
-  request: Request,
-  userId: string,
-) {
+export async function updateAdminUser(request: Request, userId: string) {
   const authorization = await requireAdmin();
 
-  if (authorization instanceof Response) {
-    return authorization;
+  if (!authorization.ok) {
+    return authorization.response;
   }
 
   let body: unknown;
@@ -321,110 +238,30 @@ export async function updateAdminUser(
   try {
     body = await request.json();
   } catch {
-    return apiError(
-      400,
-      "INVALID_JSON",
-      "Enter valid user information.",
-    );
+    return apiError(400, "INVALID_JSON", "Enter valid user information.");
   }
 
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return apiError(
-      400,
-      "INVALID_USER_UPDATE",
-      "Enter valid user information.",
-    );
+  const validation = validateUpdateAdminUser(body);
+
+  if (validation.error) {
+    return apiError(400, validation.error.code, validation.error.message);
   }
 
-  const values = body as Record<string, unknown>;
+  const { email, householdName, householdSize, disabled } = validation.data;
 
-  const email =
-    values.email === undefined
-      ? undefined
-      : String(values.email).trim().toLowerCase();
+  const adminResult = getAdminClient();
 
-  const householdName =
-    values.householdName === undefined
-      ? undefined
-      : String(values.householdName).trim();
-
-  const householdSize =
-    values.householdSize === undefined
-      ? undefined
-      : Number(values.householdSize);
-
-  const disabled =
-    values.disabled === undefined
-      ? undefined
-      : values.disabled;
-
-  if (
-    email === undefined &&
-    householdName === undefined &&
-    householdSize === undefined &&
-    disabled === undefined
-  ) {
-    return apiError(
-      400,
-      "NO_CHANGES",
-      "No user changes were provided.",
-    );
+  if (!adminResult.ok) {
+    return adminResult.response;
   }
 
-  if (
-    email !== undefined &&
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  ) {
-    return apiError(
-      400,
-      "INVALID_EMAIL",
-      "Enter a valid email address.",
-    );
-  }
-
-  if (
-    householdName !== undefined &&
-    (!householdName || householdName.length > 60)
-  ) {
-    return apiError(
-      400,
-      "INVALID_HOUSEHOLD_NAME",
-      "Enter a household name of no more than 60 characters.",
-    );
-  }
-
-  if (
-    householdSize !== undefined &&
-    (!Number.isInteger(householdSize) ||
-      householdSize < 1 ||
-      householdSize > 20)
-  ) {
-    return apiError(
-      400,
-      "INVALID_HOUSEHOLD_SIZE",
-      "Household size must be between 1 and 20.",
-    );
-  }
-
-  if (disabled !== undefined && typeof disabled !== "boolean") {
-    return apiError(
-      400,
-      "INVALID_STATUS",
-      "Enter a valid user status.",
-    );
-  }
-
-  const admin = createAdminClient();
+  const admin = adminResult.client;
 
   const { data: targetData, error: targetError } =
     await admin.auth.admin.getUserById(userId);
 
   if (targetError || !targetData.user) {
-    return apiError(
-      404,
-      "USER_NOT_FOUND",
-      "User not found.",
-    );
+    return apiError(404, "USER_NOT_FOUND", "User not found.");
   }
 
   const { data: roleRecord, error: roleError } = await admin
@@ -450,29 +287,27 @@ export async function updateAdminUser(
   }
 
   if (email !== undefined) {
-    const { error } = await admin.auth.admin.updateUserById(
-      userId,
-      {
-        email,
-      },
-    );
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      email,
+    });
 
     if (error) {
+      const duplicateEmail = error.message.toLowerCase().includes("already");
+
       return apiError(
-        500,
-        "EMAIL_UPDATE_FAILED",
-        "Unable to update the user email.",
+        duplicateEmail ? 409 : 500,
+        duplicateEmail ? "EMAIL_ALREADY_EXISTS" : "EMAIL_UPDATE_FAILED",
+        duplicateEmail
+          ? "A user with this email address already exists."
+          : "Unable to update the user email.",
       );
     }
   }
 
   if (disabled !== undefined) {
-    const { error } = await admin.auth.admin.updateUserById(
-      userId,
-      {
-        ban_duration: disabled ? "876000h" : "none",
-      },
-    );
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: disabled ? "876000h" : "none",
+    });
 
     if (error) {
       return apiError(
@@ -497,10 +332,12 @@ export async function updateAdminUser(
   }
 
   if (Object.keys(profileChanges).length > 0) {
-    const { error } = await admin
+    const { data: profile, error } = await admin
       .from("household_profiles")
       .update(profileChanges)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select("user_id")
+      .maybeSingle();
 
     if (error) {
       return apiError(
@@ -508,6 +345,10 @@ export async function updateAdminUser(
         "PROFILE_UPDATE_FAILED",
         "Unable to update the household profile.",
       );
+    }
+
+    if (!profile) {
+      return apiError(404, "PROFILE_NOT_FOUND", "Household profile not found.");
     }
   }
 
@@ -526,8 +367,8 @@ export async function updateAdminUser(
 export async function deleteAdminUser(userId: string) {
   const authorization = await requireAdmin();
 
-  if (authorization instanceof Response) {
-    return authorization;
+  if (!authorization.ok) {
+    return authorization.response;
   }
 
   if (authorization.userId === userId) {
@@ -538,7 +379,20 @@ export async function deleteAdminUser(userId: string) {
     );
   }
 
-  const admin = createAdminClient();
+  const adminResult = getAdminClient();
+
+  if (!adminResult.ok) {
+    return adminResult.response;
+  }
+
+  const admin = adminResult.client;
+
+  const { data: targetData, error: targetError } =
+    await admin.auth.admin.getUserById(userId);
+
+  if (targetError || !targetData.user) {
+    return apiError(404, "USER_NOT_FOUND", "User not found.");
+  }
 
   const { data: roleRecord, error: roleError } = await admin
     .from("account_roles")
@@ -567,12 +421,8 @@ export async function deleteAdminUser(userId: string) {
   if (error) {
     return apiError(
       error.status === 404 ? 404 : 500,
-      error.status === 404
-        ? "USER_NOT_FOUND"
-        : "USER_DELETE_FAILED",
-      error.status === 404
-        ? "User not found."
-        : "Unable to delete the user.",
+      error.status === 404 ? "USER_NOT_FOUND" : "USER_DELETE_FAILED",
+      error.status === 404 ? "User not found." : "Unable to delete the user.",
     );
   }
 

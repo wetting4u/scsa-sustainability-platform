@@ -1,16 +1,8 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
-import {
-  resources,
-  type Resource,
-} from "@/features/records/domain";
-import type {
-  Challenge,
-  ChallengeInput,
-} from "../domain";
-
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+import { requireAdmin } from "@/features/admin/server/authorization";
+import { resources, type Resource } from "@/features/records/domain";
+import type { Challenge, ChallengeInput } from "../domain";
 
 type ChallengeRow = {
   id: string;
@@ -23,16 +15,6 @@ type ChallengeRow = {
   tag: string;
   icon: string;
 };
-
-type AdminResult =
-  | {
-      ok: true;
-      supabase: SupabaseClient;
-    }
-  | {
-      ok: false;
-      response: Response;
-    };
 
 type InputResult =
   | {
@@ -48,11 +30,7 @@ const noStoreHeaders = {
   "Cache-Control": "no-store",
 };
 
-function apiError(
-  status: number,
-  code: string,
-  message: string,
-) {
+function apiError(status: number, code: string, message: string) {
   return Response.json(
     {
       error: {
@@ -70,9 +48,7 @@ function apiError(
 function mapChallenge(row: ChallengeRow): Challenge {
   const days =
     Math.round(
-      (Date.parse(row.end_date) -
-        Date.parse(row.start_date)) /
-        86400000,
+      (Date.parse(row.end_date) - Date.parse(row.start_date)) / 86400000,
     ) + 1;
 
   return {
@@ -97,68 +73,11 @@ function isValidDate(value: string) {
   const date = new Date(`${value}T00:00:00Z`);
 
   return (
-    !Number.isNaN(date.getTime()) &&
-    date.toISOString().slice(0, 10) === value
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
   );
 }
 
-async function requireAdmin(): Promise<AdminResult> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return {
-      ok: false,
-      response: apiError(
-        401,
-        "UNAUTHENTICATED",
-        "You must sign in before managing challenges.",
-      ),
-    };
-  }
-
-  const { data: accountRole, error: roleError } =
-    await supabase
-      .from("account_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-  if (roleError) {
-    return {
-      ok: false,
-      response: apiError(
-        500,
-        "ROLE_QUERY_FAILED",
-        "Unable to verify administrator access.",
-      ),
-    };
-  }
-
-  if (accountRole?.role !== "admin") {
-    return {
-      ok: false,
-      response: apiError(
-        403,
-        "FORBIDDEN",
-        "Administrator access is required.",
-      ),
-    };
-  }
-
-  return {
-    ok: true,
-    supabase,
-  };
-}
-
-async function readChallengeInput(
-  request: Request,
-): Promise<InputResult> {
+async function readChallengeInput(request: Request): Promise<InputResult> {
   let body: unknown;
 
   try {
@@ -174,11 +93,7 @@ async function readChallengeInput(
     };
   }
 
-  if (
-    !body ||
-    typeof body !== "object" ||
-    Array.isArray(body)
-  ) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
     return {
       ok: false,
       response: apiError(
@@ -191,15 +106,11 @@ async function readChallengeInput(
 
   const values = body as Record<string, unknown>;
 
-  const resource = String(
-    values.resource ?? "",
-  ) as Resource;
+  const resource = String(values.resource ?? "") as Resource;
 
   const input: ChallengeInput = {
     title: String(values.title ?? "").trim(),
-    description: String(
-      values.description ?? "",
-    ).trim(),
+    description: String(values.description ?? "").trim(),
     resource,
     target: Number(values.target),
     start: String(values.start ?? ""),
@@ -208,15 +119,12 @@ async function readChallengeInput(
     icon: String(values.icon ?? "").trim(),
   };
 
-  const resourceExists =
-    Object.prototype.hasOwnProperty.call(
-      resources,
-      input.resource,
-    );
-
-  const iconExists = ["sprout", "bolt", "drop"].includes(
-    input.icon,
+  const resourceExists = Object.prototype.hasOwnProperty.call(
+    resources,
+    input.resource,
   );
+
+  const iconExists = ["sprout", "bolt", "drop"].includes(input.icon);
 
   if (
     !input.title ||
@@ -250,9 +158,7 @@ async function readChallengeInput(
   };
 }
 
-export async function createAdminChallenge(
-  request: Request,
-) {
+export async function createAdminChallenge(request: Request) {
   const admin = await requireAdmin();
 
   if (!admin.ok) {
@@ -348,11 +254,7 @@ export async function updateAdminChallenge(
   }
 
   if (!data) {
-    return apiError(
-      404,
-      "CHALLENGE_NOT_FOUND",
-      "Challenge not found.",
-    );
+    return apiError(404, "CHALLENGE_NOT_FOUND", "Challenge not found.");
   }
 
   return Response.json(
@@ -366,9 +268,7 @@ export async function updateAdminChallenge(
   );
 }
 
-export async function deleteAdminChallenge(
-  challengeId: string,
-) {
+export async function deleteAdminChallenge(challengeId: string) {
   const admin = await requireAdmin();
 
   if (!admin.ok) {
@@ -391,11 +291,7 @@ export async function deleteAdminChallenge(
   }
 
   if (!data) {
-    return apiError(
-      404,
-      "CHALLENGE_NOT_FOUND",
-      "Challenge not found.",
-    );
+    return apiError(404, "CHALLENGE_NOT_FOUND", "Challenge not found.");
   }
 
   return Response.json(

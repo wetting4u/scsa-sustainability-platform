@@ -1,47 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { type FormEvent, useState } from "react";
+
+import { authErrorMessage } from "@/features/auth/domain";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignInPage() {
-  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-  event.preventDefault();
+    event.preventDefault();
 
-  const form = event.currentTarget;
-  const formData = new FormData(form);
-  const email = String(formData.get("email")).trim();
-  const password = String(formData.get("password"));
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") ?? "")
+      .trim()
+      .toLowerCase();
+    const password = String(formData.get("password") ?? "");
 
-  setMessage("");
-  setSubmitting(true);
+    setError("");
+    setSubmitting(true);
 
-  try {
-    const supabase = createClient();
+    try {
+      const supabase = createClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+      if (signInError) {
+        setError(
+          authErrorMessage(
+            signInError,
+            "Unable to sign in. Check your details and try again.",
+          ),
+        );
+        return;
+      }
 
-    if (error) {
-      setMessage(error.message);
-      return;
+      window.location.assign("/overview");
+    } catch {
+      setError("Unable to reach the authentication service. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
-
-    window.location.href = "/overview";
-  } catch (requestError) {
-    setMessage(
-      requestError instanceof Error
-        ? requestError.message
-        : "Unable to sign in.",
-    );
-  } finally {
-    setSubmitting(false);
-  }
   }
 
   return (
@@ -53,14 +56,9 @@ export default function SignInPage() {
         padding: "24px",
       }}
     >
-      <section
-        className="panel"
-        style={{ width: "100%", maxWidth: "480px" }}
-      >
+      <section className="panel" style={{ width: "100%", maxWidth: "480px" }}>
         <div className="eyebrow">WELCOME BACK</div>
-
         <h1>Sign in</h1>
-
         <p>Sign in to continue tracking your household progress.</p>
 
         <form onSubmit={handleSubmit}>
@@ -69,6 +67,7 @@ export default function SignInPage() {
             <input
               name="email"
               type="email"
+              autoComplete="email"
               placeholder="you@example.com"
               required
             />
@@ -79,14 +78,15 @@ export default function SignInPage() {
             <input
               name="password"
               type="password"
+              autoComplete="current-password"
               placeholder="Enter your password"
               required
             />
           </label>
 
-          {message && (
-            <p className="success" role="status">
-              {message}
+          {error && (
+            <p className="error" role="alert">
+              {error}
             </p>
           )}
 

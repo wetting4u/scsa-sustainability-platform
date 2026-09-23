@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { Shell } from "@/components/shell";
 import { createClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 export default async function HouseholdLayout({
   children,
 }: {
