@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Icon, PageHeading } from "@/components/ui";
+import { isStrongPassword } from "@/features/auth/domain";
 import { profileApi } from "./client";
 export function Settings() {
   const [analytics, setAnalytics] = useState(false);
@@ -128,15 +129,9 @@ export function Settings() {
     setPasswordError("");
     setPasswordMessage("");
 
-    const validPassword =
-      password.length >= 8 &&
-      /[a-z]/.test(password) &&
-      /[A-Z]/.test(password) &&
-      /[^A-Za-z0-9]/.test(password);
-
-    if (!validPassword) {
+    if (!isStrongPassword(password)) {
       setPasswordError(
-        "Password must contain at least 8 characters, uppercase and lowercase letters, and a special character.",
+        "Password must contain at least 8 characters, uppercase and lowercase letters, a number, and a special character.",
       );
       return;
     }
@@ -233,8 +228,8 @@ export function Settings() {
             </label>
 
             <p className="caption">
-              Use at least 8 characters with uppercase and lowercase letters and
-              a special character.
+              Use at least 8 characters with uppercase and lowercase letters, a
+              number, and a special character.
             </p>
 
             <label>
