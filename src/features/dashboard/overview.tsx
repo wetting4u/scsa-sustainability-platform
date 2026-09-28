@@ -118,7 +118,6 @@ useEffect(() => {
       </section>
       <div className="section-title">
         <h2>Your resource snapshot</h2>
-        <span className="period-tag">September 2026 · Demo period</span>
       </div>
       <div className="stats-grid">
         {(Object.keys(resources) as Resource[]).map((key, index) => (

@@ -92,7 +92,12 @@ button:disabled {
   padding: 35px 23px 20px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   z-index: 20;
+}
+.sidebar > * {
+  flex-shrink: 0;
 }
 .brand {
   display: flex;

@@ -13,16 +13,6 @@ const links: { href: string; label: string; icon: keyof typeof icons }[] = [
   { href: "/community", label: "Community", icon: "community" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ];
-const usersLink: {
-  href: string;
-  label: string;
-  icon: keyof typeof icons;
-} = {
-  href: "/admin/users",
-  label: "Users",
-  icon: "community",
-};
-
 const adminLinks: {
   href: string;
   label: string;
@@ -32,6 +22,11 @@ const adminLinks: {
     href: "/admin",
     label: "Admin overview",
     icon: "dashboard",
+  },
+  {
+    href: "/admin/users",
+    label: "Users",
+    icon: "community",
   },
   {
     href: "/admin/challenges",
@@ -93,26 +88,8 @@ export function Shell({
               {pathname === l.href && <span className="nav-dot" />}
             </Link>
           ))}
-          {isAdmin && (
-          <Link
-            href={usersLink.href}
-            onClick={() => setOpen(false)}
-            aria-current={
-              pathname === usersLink.href ? "page" : undefined
-            }
-            className={`nav-link ${
-              pathname === usersLink.href ? "active" : ""
-            }`}
-          >
-            <Icon name={usersLink.icon} />
-            {usersLink.label}
-            {pathname === usersLink.href && (
-              <span className="nav-dot" />
-            )}
-          </Link>
-        )}
         </nav>
-                {isAdmin && (
+        {isAdmin && (
           <>
             <div className="nav-label">ADMINISTRATION</div>
 
@@ -153,15 +130,12 @@ export function Shell({
           <div className="breadcrumb">
             Your space <span>/</span>{" "}
             <strong>
-              {[...links, usersLink, ...adminLinks].find(
+              {[...links, ...adminLinks].find(
               (link) => link.href === pathname,
             )?.label || "Settings & privacy"}
             </strong>
           </div>
           <div className="topbar-right">
-            <span className="demo-pill">
-              <span /> Account connected
-            </span>
             <span className="avatar">{initials}</span>
             <span className="household-name">{householdName}</span>
             <button
