@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { PageHeading } from "@/components/ui";
 
 import { adminUsersApi } from "@/features/admin-users/client";
 import type { AdminManagedUser } from "@/features/admin-users/domain";
@@ -267,318 +268,298 @@ export default function AdminUsersPage() {
   });
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        padding: "48px 24px",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "1100px",
-          margin: "0 auto",
-        }}
-      >
-        <div className="eyebrow">ADMINISTRATION</div>
+    <>
+      <PageHeading
+        eyebrow="ADMINISTRATION"
+        title="Manage users."
+        description="Create household accounts and review their current account status."
+      />
 
-        <h1>Manage users</h1>
+      <section className="panel form-panel">
+        <h2>Create household user</h2>
 
         <p>
-          Create household accounts and review their current account status.
+          New accounts are created as confirmed ordinary household users and can
+          sign in immediately. The administrator account remains protected.
         </p>
 
-        <section className="panel form-panel">
-          <h2>Create household user</h2>
+        <form onSubmit={handleCreateUser}>
+          <div className="form-grid">
+            <label>
+              Email address
+              <input
+                name="email"
+                type="email"
+                placeholder="household@example.com"
+                required
+              />
+            </label>
 
-          <p>
-            New accounts are created as confirmed ordinary household users and
-            can sign in immediately. The administrator account remains
-            protected.
-          </p>
+            <label>
+              Temporary password
+              <input
+                name="password"
+                type="password"
+                minLength={8}
+                pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+                title="Use at least 8 characters with uppercase, lowercase, a number and a special character."
+                required
+              />
+            </label>
 
-          <form onSubmit={handleCreateUser}>
-            <div className="form-grid">
-              <label>
-                Email address
-                <input
-                  name="email"
-                  type="email"
-                  placeholder="household@example.com"
-                  required
-                />
-              </label>
+            <label>
+              Household name
+              <input
+                name="householdName"
+                type="text"
+                placeholder="Green Gum Household"
+                maxLength={60}
+                required
+              />
+            </label>
 
-              <label>
-                Temporary password
-                <input
-                  name="password"
-                  type="password"
-                  minLength={8}
-                  pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
-                  title="Use at least 8 characters with uppercase, lowercase, a number and a special character."
-                  required
-                />
-              </label>
-
-              <label>
-                Household name
-                <input
-                  name="householdName"
-                  type="text"
-                  placeholder="Green Gum Household"
-                  maxLength={60}
-                  required
-                />
-              </label>
-
-              <label>
-                Household size
-                <input
-                  name="householdSize"
-                  type="number"
-                  min={1}
-                  max={20}
-                  step={1}
-                  defaultValue={1}
-                  required
-                />
-              </label>
-            </div>
-
-            <p className="caption">
-              Passwords require at least 8 characters, uppercase and lowercase
-              letters, a number, and a special character. No verification email
-              is required for administrator-created accounts.
-            </p>
-
-            <div className="form-actions">
-              <button
-                className="button primary"
-                type="submit"
-                disabled={creating}
-              >
-                {creating ? "Creating..." : "Create user"}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-
-        {message && (
-          <p className="success" role="status">
-            {message}
-          </p>
-        )}
-
-        <section className="panel">
-          <div className="section-title">
-            <h2>Household users</h2>
-            <span>
-              {filteredUsers.length} of {users.length} accounts
-            </span>
+            <label>
+              Household size
+              <input
+                name="householdSize"
+                type="number"
+                min={1}
+                max={20}
+                step={1}
+                defaultValue={1}
+                required
+              />
+            </label>
           </div>
 
-          <div className="table-scroll">
-            <div style={{ marginBottom: "28px" }}>
+          <p className="caption">
+            Passwords require at least 8 characters, uppercase and lowercase
+            letters, a number, and a special character. No verification email is
+            required for administrator-created accounts.
+          </p>
+
+          <div className="form-actions">
+            <button
+              className="button primary"
+              type="submit"
+              disabled={creating}
+            >
+              {creating ? "Creating..." : "Create user"}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+
+      {message && (
+        <p className="success" role="status">
+          {message}
+        </p>
+      )}
+
+      <section className="panel">
+        <div className="section-title">
+          <h2>Household users</h2>
+          <span>
+            {filteredUsers.length} of {users.length} accounts
+          </span>
+        </div>
+
+        <div className="table-scroll">
+          <div style={{ marginBottom: "28px" }}>
+            <label
+              htmlFor="user-search"
+              style={{
+                display: "block",
+                marginBottom: "6px",
+                fontWeight: 600,
+              }}
+            >
+              Search users
+            </label>
+
+            <input
+              id="user-search"
+              type="search"
+              placeholder="Search by email or household..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                border: "1px solid #cfd8cf",
+                borderRadius: "6px",
+              }}
+            />
+
+            <div
+              style={{
+                marginTop: "14px",
+                maxWidth: "220px",
+              }}
+            >
               <label
-                htmlFor="user-search"
+                htmlFor="status-filter"
                 style={{
                   display: "block",
                   marginBottom: "6px",
                   fontWeight: 600,
                 }}
               >
-                Search users
+                Filter by status
               </label>
 
-              <input
-                id="user-search"
-                type="search"
-                placeholder="Search by email or household..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+              <select
+                id="status-filter"
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(
+                    event.target.value as "all" | "active" | "disabled",
+                  )
+                }
                 style={{
                   width: "100%",
                   padding: "10px 12px",
                   border: "1px solid #cfd8cf",
                   borderRadius: "6px",
-                }}
-              />
-
-              <div
-                style={{
-                  marginTop: "14px",
-                  maxWidth: "220px",
+                  backgroundColor: "white",
                 }}
               >
-                <label
-                  htmlFor="status-filter"
-                  style={{
-                    display: "block",
-                    marginBottom: "6px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Filter by status
-                </label>
-
-                <select
-                  id="status-filter"
-                  value={statusFilter}
-                  onChange={(event) =>
-                    setStatusFilter(
-                      event.target.value as "all" | "active" | "disabled",
-                    )
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    border: "1px solid #cfd8cf",
-                    borderRadius: "6px",
-                    backgroundColor: "white",
-                  }}
-                >
-                  <option value="all">All users</option>
-                  <option value="active">Active</option>
-                  <option value="disabled">Disabled</option>
-                </select>
-              </div>
+                <option value="all">All users</option>
+                <option value="active">Active</option>
+                <option value="disabled">Disabled</option>
+              </select>
             </div>
+          </div>
 
-            <table>
-              <thead>
+          <table>
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Household name</th>
+                <th>Size</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading && (
                 <tr>
-                  <th>Email</th>
-                  <th>Household name</th>
-                  <th>Size</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <td
+                    colSpan={6}
+                    style={{
+                      padding: "32px",
+                      textAlign: "center",
+                    }}
+                  >
+                    Loading users...
+                  </td>
                 </tr>
-              </thead>
+              )}
 
-              <tbody>
-                {loading && (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      style={{
-                        padding: "32px",
-                        textAlign: "center",
-                      }}
-                    >
-                      Loading users...
-                    </td>
-                  </tr>
-                )}
+              {!loading && filteredUsers.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    style={{
+                      padding: "32px",
+                      textAlign: "center",
+                      color: "#6b746b",
+                    }}
+                  >
+                    No users found. Try a different email or household name.
+                  </td>
+                </tr>
+              )}
 
-                {!loading && filteredUsers.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      style={{
-                        padding: "32px",
-                        textAlign: "center",
-                        color: "#6b746b",
-                      }}
-                    >
-                      No users found. Try a different email or household name.
-                    </td>
-                  </tr>
-                )}
+              {!loading &&
+                filteredUsers.map((user) => {
+                  const protectedAdmin = user.role === "admin";
+                  const working = workingId === user.id;
 
-                {!loading &&
-                  filteredUsers.map((user) => {
-                    const protectedAdmin = user.role === "admin";
-                    const working = workingId === user.id;
+                  return (
+                    <tr key={user.id}>
+                      <td>{user.email}</td>
+                      <td>{user.householdName || "Unnamed household"}</td>
+                      <td>{user.householdSize}</td>
+                      <td>{protectedAdmin ? "Administrator" : "Household"}</td>
+                      <td>
+                        <span
+                          style={{
+                            color:
+                              user.status === "active" ? "#2e603d" : "#9d332c",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {user.status === "active" ? "Active" : "Disabled"}
+                        </span>
+                      </td>
 
-                    return (
-                      <tr key={user.id}>
-                        <td>{user.email}</td>
-                        <td>{user.householdName || "Unnamed household"}</td>
-                        <td>{user.householdSize}</td>
-                        <td>
-                          {protectedAdmin ? "Administrator" : "Household"}
-                        </td>
-                        <td>
-                          <span
+                      <td>
+                        {protectedAdmin ? (
+                          <span className="caption">
+                            Protected administrator
+                          </span>
+                        ) : (
+                          <div
                             style={{
-                              color:
-                                user.status === "active"
-                                  ? "#2e603d"
-                                  : "#9d332c",
-                              fontWeight: 600,
+                              display: "flex",
+                              gap: "8px",
+                              alignItems: "center",
+                              flexWrap: "wrap",
                             }}
                           >
-                            {user.status === "active" ? "Active" : "Disabled"}
-                          </span>
-                        </td>
+                            <button
+                              className="button secondary"
+                              type="button"
+                              disabled={working}
+                              onClick={() => void toggleUserStatus(user.id)}
+                            >
+                              {working
+                                ? "Updating..."
+                                : user.status === "active"
+                                  ? "Disable"
+                                  : "Restore"}
+                            </button>
 
-                        <td>
-                          {protectedAdmin ? (
-                            <span className="caption">
-                              Protected administrator
-                            </span>
-                          ) : (
-                            <div
+                            <button
+                              className="button secondary"
+                              type="button"
+                              disabled={working}
+                              onClick={() => void editUser(user.id)}
+                            >
+                              Edit user
+                            </button>
+
+                            <button
+                              className="button secondary"
+                              type="button"
+                              disabled={working}
+                              onClick={() => void deleteUser(user.id)}
                               style={{
-                                display: "flex",
-                                gap: "8px",
-                                alignItems: "center",
-                                flexWrap: "wrap",
+                                color: "#9d332c",
+                                borderColor: "#d9aaa5",
                               }}
                             >
-                              <button
-                                className="button secondary"
-                                type="button"
-                                disabled={working}
-                                onClick={() => void toggleUserStatus(user.id)}
-                              >
-                                {working
-                                  ? "Updating..."
-                                  : user.status === "active"
-                                    ? "Disable"
-                                    : "Restore"}
-                              </button>
-
-                              <button
-                                className="button secondary"
-                                type="button"
-                                disabled={working}
-                                onClick={() => void editUser(user.id)}
-                              >
-                                Edit user
-                              </button>
-
-                              <button
-                                className="button secondary"
-                                type="button"
-                                disabled={working}
-                                onClick={() => void deleteUser(user.id)}
-                                style={{
-                                  color: "#9d332c",
-                                  borderColor: "#d9aaa5",
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    </main>
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
   );
 }

@@ -25,7 +25,7 @@ const adminLinks: {
   },
   {
     href: "/admin/users",
-    label: "Users",
+    label: "Manage users",
     icon: "community",
   },
   {
