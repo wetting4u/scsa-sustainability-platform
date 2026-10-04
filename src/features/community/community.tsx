@@ -5,39 +5,48 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 export function Community() {
   const [analytics, setAnalytics] = useState(false);
-const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [preferenceError, setPreferenceError] = useState("");
 
-useEffect(() => {
-  async function loadPreference() {
-    const supabase = createClient();
+  useEffect(() => {
+    async function loadPreference() {
+      const supabase = createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("household_profiles")
+        .select("share_analytics")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error) {
+        console.error(error);
+        setPreferenceError("Unable to load your sharing preference.");
+        setLoading(false);
+        return;
+      }
+
+      setAnalytics(Boolean(data.share_analytics));
       setLoading(false);
-      return;
     }
 
-    const { data, error } = await supabase
-      .from("household_profiles")
-      .select("share_analytics")
-      .eq("user_id", user.id)
-      .single();
-
-    if (error) {
-      console.error(error);
-      setLoading(false);
-      return;
-    }
-
-    setAnalytics(Boolean(data.share_analytics));
-    setLoading(false);
-  }
-
-  void loadPreference();
-}, []);
+    void loadPreference();
+  }, []);
+  const preferenceStatus = loading
+    ? "loading"
+    : preferenceError
+      ? "unavailable"
+      : analytics
+        ? "enabled"
+        : "disabled";
   return (
     <>
       <PageHeading
@@ -86,12 +95,15 @@ useEffect(() => {
           <Icon name="shield" size={28} />
           <h2>Your contribution is your choice.</h2>
           <p>
-            Community reporting is currently{" "}
-            <strong>
-              {loading ? "loading" : analytics ? "enabled" : "disabled"}
-              </strong>{" "}
-              in your account preferences. Personal goals and tracking work either way.
+            Community reporting is currently <strong>{preferenceStatus}</strong>{" "}
+            in your account preferences. Personal goals and tracking work either
+            way.
           </p>
+          {preferenceError && (
+            <p className="error" role="alert">
+              {preferenceError}
+            </p>
+          )}
           <Link href="/settings" className="button secondary">
             Manage sharing <Icon name="arrow" size={16} />
           </Link>

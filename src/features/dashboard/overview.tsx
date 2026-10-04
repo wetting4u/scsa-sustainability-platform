@@ -36,102 +36,113 @@ export function Overview() {
   const [badges, setBadges] = useState<EarnedBadge[]>([]);
   const [badgesLoading, setBadgesLoading] = useState(true);
   const [badgesError, setBadgesError] = useState("");
+  const [records, setRecords] = useState<UsageRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [resource, setResource] = useState<Resource>("electricity");
+  const [recordsError, setRecordsError] = useState("");
+  const [goalsLoading, setGoalsLoading] = useState(true);
+  const [goalsError, setGoalsError] = useState("");
 
-const [records, setRecords] = useState<UsageRecord[]>([]);
-const [loading, setLoading] = useState(true);
-const [resource, setResource] = useState<Resource>("electricity");
-
-useEffect(() => {
-  async function loadRecords() {
-    const supabase = createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("usage_records")
-      .select("id, resource, start_date, end_date, amount")
-      .eq("user_id", user.id)
-      .order("end_date", { ascending: true });
-
-    if (error) {
-      console.error(error);
-      setLoading(false);
-      return;
-    }
-
-    setRecords(
-      (data ?? []).map((record) => ({
-        id: record.id,
-        resource: record.resource as Resource,
-        start: record.start_date,
-        end: record.end_date,
-        amount: Number(record.amount),
-      })),
-    );
-
-    setLoading(false);
-  }
-
-  void loadRecords();
-}, []);
   useEffect(() => {
-  async function loadGoals() {
-    const supabase = createClient();
+    async function loadRecords() {
+      const supabase = createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-    const { data, error } = await supabase
-      .from("goals")
-      .select("id, title, resource, target, start_date, end_date")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("usage_records")
+        .select("id, resource, start_date, end_date, amount")
+        .eq("user_id", user.id)
+        .order("end_date", { ascending: true });
 
-    if (error) {
-      console.error(error);
-      return;
+      if (error) {
+        console.error(error);
+        setRecordsError("Unable to load your resource records.");
+        setLoading(false);
+        return;
+      }
+
+      setRecords(
+        (data ?? []).map((record) => ({
+          id: record.id,
+          resource: record.resource as Resource,
+          start: record.start_date,
+          end: record.end_date,
+          amount: Number(record.amount),
+        })),
+      );
+
+      setLoading(false);
     }
 
-    setGoals(
-      (data ?? []).map((goal) => ({
-        id: goal.id,
-        title: goal.title,
-        resource: goal.resource as Resource,
-        target: Number(goal.target),
-        start: goal.start_date,
-        end: goal.end_date,
-      })),
-    );
-  }
+    void loadRecords();
+  }, []);
+  useEffect(() => {
+    async function loadGoals() {
+      setGoalsError("");
+      const supabase = createClient();
 
-  void loadGoals();
-}, []);
-useEffect(() => {
-  async function loadBadges() {
-    const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      if (!user) {
+        setGoalsLoading(false);
+        return;
+      }
 
-    if (!user) {
-      setBadgesLoading(false);
-      return;
+      const { data, error } = await supabase
+        .from("goals")
+        .select("id, title, resource, target, start_date, end_date")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error(error);
+        setGoalsError("Unable to load your goals.");
+        setGoalsLoading(false);
+        return;
+      }
+
+      setGoals(
+        (data ?? []).map((goal) => ({
+          id: goal.id,
+          title: goal.title,
+          resource: goal.resource as Resource,
+          target: Number(goal.target),
+          start: goal.start_date,
+          end: goal.end_date,
+        })),
+      );
     }
+    setGoalsLoading(false);
 
-    const { data, error } = await supabase
-      .from("user_badges")
-      .select(`
+    void loadGoals();
+  }, []);
+  useEffect(() => {
+    async function loadBadges() {
+      const supabase = createClient();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setBadgesLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_badges")
+        .select(
+          `
         awarded_at,
         badge:badges (
           id,
@@ -139,38 +150,39 @@ useEffect(() => {
           description,
           icon
         )
-      `)
-      .eq("user_id", user.id)
-      .order("awarded_at", { ascending: false });
+      `,
+        )
+        .eq("user_id", user.id)
+        .order("awarded_at", { ascending: false });
 
-    if (error) {
-      console.error(error);
-      setBadgesError("Unable to load your badges.");
+      if (error) {
+        console.error(error);
+        setBadgesError("Unable to load your badges.");
+        setBadgesLoading(false);
+        return;
+      }
+
+      const rows = (data ?? []) as unknown as BadgeQueryRow[];
+      const earnedBadges: EarnedBadge[] = [];
+
+      for (const row of rows) {
+        if (!row.badge) continue;
+
+        earnedBadges.push({
+          id: row.badge.id,
+          name: row.badge.name,
+          description: row.badge.description,
+          icon: row.badge.icon,
+          awardedAt: row.awarded_at,
+        });
+      }
+
+      setBadges(earnedBadges);
       setBadgesLoading(false);
-      return;
     }
 
-    const rows = (data ?? []) as unknown as BadgeQueryRow[];
-    const earnedBadges: EarnedBadge[] = [];
-
-    for (const row of rows) {
-      if (!row.badge) continue;
-
-      earnedBadges.push({
-        id: row.badge.id,
-        name: row.badge.name,
-        description: row.badge.description,
-        icon: row.badge.icon,
-        awardedAt: row.awarded_at,
-      });
-    }
-
-    setBadges(earnedBadges);
-    setBadgesLoading(false);
-  }
-
-  void loadBadges();
-}, []);
+    void loadBadges();
+  }, []);
   const weeks = [
     ["01–07 Sep", "2026-09-01", "2026-09-07"],
     ["08–14 Sep", "2026-09-08", "2026-09-14"],
@@ -198,6 +210,18 @@ useEffect(() => {
           </Link>
         }
       />
+      {loading && (
+        <div className="notice" role="status">
+          <Icon name="records" />
+          Loading your resource records...
+        </div>
+      )}
+
+      {recordsError && (
+        <p className="error" role="alert">
+          {recordsError}
+        </p>
+      )}
       <section className="welcome-banner">
         <div>
           <span className="eyebrow">LET’S GROW SOMETHING GOOD</span>
@@ -325,10 +349,23 @@ useEffect(() => {
               View all <Icon name="arrow" size={16} />
             </Link>
           </div>
-          {goals.slice(0, 2).map((g) => (
-            <GoalCard key={g.id} goal={g} compact />
-          ))}
-          {!goals.length && <p>Create your first goal to get started.</p>}
+          {goalsLoading && <p role="status">Loading goals...</p>}
+
+          {goalsError && (
+            <p className="error" role="alert">
+              {goalsError}
+            </p>
+          )}
+
+          {!goalsLoading &&
+            !goalsError &&
+            goals
+              .slice(0, 2)
+              .map((g) => <GoalCard key={g.id} goal={g} compact />)}
+
+          {!goalsLoading && !goalsError && !goals.length && (
+            <p>Create your first goal to get started.</p>
+          )}
           <Link className="button secondary full" href="/goals">
             Make a little commitment <Icon name="plus" size={16} />
           </Link>
@@ -349,44 +386,43 @@ useEffect(() => {
           </div>
         </section>
         <section className="badge-card" aria-live="polite">
-        <span className="badge-medal">
-          <Icon name="award" size={34} />
-        </span>
+          <span className="badge-medal">
+            <Icon name="award" size={34} />
+          </span>
 
-        <div>
-          <div className="eyebrow">
-            {badgesLoading
-              ? "CHECKING YOUR PROGRESS"
-              : latestBadge
-                ? "YOUR LATEST SMALL WIN"
-                : "YOUR NEXT SMALL WIN"}
-          </div>
-
-          <h3>
-            {badgesLoading
-              ? "Loading your badges..."
-              : latestBadge?.name ?? "Every journey starts somewhere"}
-          </h3>
-
-          <p>
-            {badgesError
-              ? badgesError
-              : badgesLoading
-                ? "Looking for the achievements you have earned."
+          <div>
+            <div className="eyebrow">
+              {badgesLoading
+                ? "CHECKING YOUR PROGRESS"
                 : latestBadge
-                  ? `${latestBadge.description} · Earned ${new Date(
-                      latestBadge.awardedAt,
-                    ).toLocaleDateString("en-AU", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}`
-                  : "Complete activities to earn your first badge."}
-          </p>
-        </div>
-      </section>
+                  ? "YOUR LATEST SMALL WIN"
+                  : "YOUR NEXT SMALL WIN"}
+            </div>
+
+            <h3>
+              {badgesLoading
+                ? "Loading your badges..."
+                : (latestBadge?.name ?? "Every journey starts somewhere")}
+            </h3>
+
+            <p>
+              {badgesError
+                ? badgesError
+                : badgesLoading
+                  ? "Looking for the achievements you have earned."
+                  : latestBadge
+                    ? `${latestBadge.description} · Earned ${new Date(
+                        latestBadge.awardedAt,
+                      ).toLocaleDateString("en-AU", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}`
+                    : "Complete activities to earn your first badge."}
+            </p>
+          </div>
+        </section>
       </div>
     </>
   );
-
 }

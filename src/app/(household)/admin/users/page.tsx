@@ -342,7 +342,7 @@ export default function AdminUsersPage() {
             <button
               className="button primary"
               type="submit"
-              disabled={creating}
+              disabled={creating || workingId !== null}
             >
               {creating ? "Creating..." : "Create user"}
             </button>
@@ -464,7 +464,7 @@ export default function AdminUsersPage() {
                 </tr>
               )}
 
-              {!loading && filteredUsers.length === 0 && (
+              {!loading && !error && filteredUsers.length === 0 && (
                 <tr>
                   <td
                     colSpan={6}
@@ -480,6 +480,7 @@ export default function AdminUsersPage() {
               )}
 
               {!loading &&
+                !error &&
                 filteredUsers.map((user) => {
                   const protectedAdmin = user.role === "admin";
                   const working = workingId === user.id;
@@ -519,7 +520,7 @@ export default function AdminUsersPage() {
                             <button
                               className="button secondary"
                               type="button"
-                              disabled={working}
+                              disabled={creating || workingId !== null}
                               onClick={() => void toggleUserStatus(user.id)}
                             >
                               {working
@@ -532,7 +533,7 @@ export default function AdminUsersPage() {
                             <button
                               className="button secondary"
                               type="button"
-                              disabled={working}
+                              disabled={creating || workingId !== null}
                               onClick={() => void editUser(user.id)}
                             >
                               Edit user
@@ -541,7 +542,7 @@ export default function AdminUsersPage() {
                             <button
                               className="button secondary"
                               type="button"
-                              disabled={working}
+                              disabled={creating || workingId !== null}
                               onClick={() => void deleteUser(user.id)}
                               style={{
                                 color: "#9d332c",
