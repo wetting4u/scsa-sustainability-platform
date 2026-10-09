@@ -152,7 +152,6 @@ export function Shell({
           {children}
           <footer className="page-footer">
             <span>Growing a more sustainable South Australia, together.</span>
-            <span>Prototype · Sample sustainability data · Account protected</span>
           </footer>
         </main>
       </div>

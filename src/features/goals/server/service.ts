@@ -1,11 +1,8 @@
 import "server-only";
+import { validatePeriod, validatePeriodChange } from "@/lib/periods";
 
 import { createClient } from "@/lib/supabase/server";
-import {
-  resources,
-  type Goal,
-  type Resource,
-} from "@/features/records/domain";
+import { resources, type Goal, type Resource } from "@/features/records/domain";
 
 type GoalRow = {
   id: string;
@@ -43,8 +40,7 @@ function isValidDate(value: string) {
   const date = new Date(`${value}T00:00:00Z`);
 
   return (
-    !Number.isNaN(date.getTime()) &&
-    date.toISOString().slice(0, 10) === value
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
   );
 }
 
@@ -129,14 +125,8 @@ export async function createGoal(request: Request) {
   const values = body as Record<string, unknown>;
   const resourceValue = String(values.resource ?? "");
 
-  if (
-    !Object.prototype.hasOwnProperty.call(resources, resourceValue)
-  ) {
-    return apiError(
-      400,
-      "VALIDATION_ERROR",
-      "Choose a valid resource.",
-    );
+  if (!Object.prototype.hasOwnProperty.call(resources, resourceValue)) {
+    return apiError(400, "VALIDATION_ERROR", "Choose a valid resource.");
   }
 
   const goal: Omit<Goal, "id"> = {
@@ -172,12 +162,11 @@ export async function createGoal(request: Request) {
     !isValidDate(goal.end) ||
     goal.end < goal.start
   ) {
-    return apiError(
-      400,
-      "VALIDATION_ERROR",
-      "Enter a valid goal date period.",
-    );
+    return apiError(400, "VALIDATION_ERROR", "Enter a valid goal date period.");
   }
+
+  const periodError = validatePeriod(goal, "goal");
+  if (periodError) return apiError(400, "INVALID_PERIOD", periodError);
 
   const { data, error } = await supabase
     .from("goals")
@@ -193,11 +182,7 @@ export async function createGoal(request: Request) {
     .single();
 
   if (error) {
-    return apiError(
-      500,
-      "GOAL_CREATE_FAILED",
-      "Unable to create the goal.",
-    );
+    return apiError(500, "GOAL_CREATE_FAILED", "Unable to create the goal.");
   }
 
   return Response.json(
@@ -241,14 +226,8 @@ export async function updateGoal(request: Request, goalId: string) {
   const values = body as Record<string, unknown>;
   const resourceValue = String(values.resource ?? "");
 
-  if (
-    !Object.prototype.hasOwnProperty.call(resources, resourceValue)
-  ) {
-    return apiError(
-      400,
-      "VALIDATION_ERROR",
-      "Choose a valid resource.",
-    );
+  if (!Object.prototype.hasOwnProperty.call(resources, resourceValue)) {
+    return apiError(400, "VALIDATION_ERROR", "Choose a valid resource.");
   }
 
   const goal: Omit<Goal, "id"> = {
@@ -284,12 +263,28 @@ export async function updateGoal(request: Request, goalId: string) {
     !isValidDate(goal.end) ||
     goal.end < goal.start
   ) {
-    return apiError(
-      400,
-      "VALIDATION_ERROR",
-      "Enter a valid goal date period.",
-    );
+    return apiError(400, "VALIDATION_ERROR", "Enter a valid goal date period.");
   }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("goals")
+    .select("start_date, end_date")
+    .eq("id", goalId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (existingError)
+    return apiError(
+      500,
+      "GOAL_QUERY_FAILED",
+      "Unable to check the saved goal.",
+    );
+  if (!existing) return apiError(404, "GOAL_NOT_FOUND", "Goal not found.");
+  const periodError = validatePeriodChange(
+    goal,
+    { start: existing.start_date, end: existing.end_date },
+    "goal",
+  );
+  if (periodError) return apiError(400, "INVALID_PERIOD", periodError);
 
   const { data, error } = await supabase
     .from("goals")
@@ -306,11 +301,7 @@ export async function updateGoal(request: Request, goalId: string) {
     .maybeSingle();
 
   if (error) {
-    return apiError(
-      500,
-      "GOAL_UPDATE_FAILED",
-      "Unable to update the goal.",
-    );
+    return apiError(500, "GOAL_UPDATE_FAILED", "Unable to update the goal.");
   }
 
   if (!data) {
@@ -353,11 +344,7 @@ export async function deleteGoal(goalId: string) {
     .maybeSingle();
 
   if (error) {
-    return apiError(
-      500,
-      "GOAL_DELETE_FAILED",
-      "Unable to delete the goal.",
-    );
+    return apiError(500, "GOAL_DELETE_FAILED", "Unable to delete the goal.");
   }
 
   if (!data) {

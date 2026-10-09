@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/domain.test.ts tests/auth.test.ts tests/account-initialization.test.ts tests/profile.test.ts tests/admin-authorization.test.ts tests/admin-users.test.ts",
+    "test": "node --experimental-strip-types --test tests/domain.test.ts tests/auth.test.ts tests/account-initialization.test.ts tests/profile.test.ts tests/admin-authorization.test.ts tests/admin-users.test.ts tests/periods.test.ts",
     "format": "prettier --write src tests next.config.ts",
     "format:check": "prettier --check src tests next.config.ts",
     "test:db": "node --test tests/database.test.mjs"

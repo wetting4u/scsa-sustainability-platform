@@ -6,12 +6,11 @@ import { Icon, PageHeading } from "@/components/ui";
 import {
   resources,
   totalFor,
-  type Goal,
   type Resource,
   type UsageRecord,
 } from "@/features/records/domain";
 
-import { GoalCard } from "@/features/goals/goals";
+import styles from "./overview.module.css";
 import { createClient } from "@/lib/supabase/client";
 type EarnedBadge = {
   id: string;
@@ -32,16 +31,15 @@ type BadgeQueryRow = {
 };
 
 export function Overview() {
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [badges, setBadges] = useState<EarnedBadge[]>([]);
-  const [badgesLoading, setBadgesLoading] = useState(true);
-  const [badgesError, setBadgesError] = useState("");
-  const [records, setRecords] = useState<UsageRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [resource, setResource] = useState<Resource>("electricity");
-  const [recordsError, setRecordsError] = useState("");
-  const [goalsLoading, setGoalsLoading] = useState(true);
-  const [goalsError, setGoalsError] = useState("");
+
+const [badges, setBadges] = useState<EarnedBadge[]>([]);
+const [badgesLoading, setBadgesLoading] = useState(true);
+const [badgesError, setBadgesError] = useState("");
+
+const [records, setRecords] = useState<UsageRecord[]>([]);
+const [loading, setLoading] = useState(true);
+const [resource, setResource] = useState<Resource>("electricity");
+const [recordsError, setRecordsError] = useState("");
 
   useEffect(() => {
     async function loadRecords() {
@@ -84,48 +82,7 @@ export function Overview() {
 
     void loadRecords();
   }, []);
-  useEffect(() => {
-    async function loadGoals() {
-      setGoalsError("");
-      const supabase = createClient();
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setGoalsLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("goals")
-        .select("id, title, resource, target, start_date, end_date")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error(error);
-        setGoalsError("Unable to load your goals.");
-        setGoalsLoading(false);
-        return;
-      }
-
-      setGoals(
-        (data ?? []).map((goal) => ({
-          id: goal.id,
-          title: goal.title,
-          resource: goal.resource as Resource,
-          target: Number(goal.target),
-          start: goal.start_date,
-          end: goal.end_date,
-        })),
-      );
-    }
-    setGoalsLoading(false);
-
-    void loadGoals();
-  }, []);
+ 
   useEffect(() => {
     async function loadBadges() {
       const supabase = createClient();
@@ -298,7 +255,7 @@ export function Overview() {
           </article>
         ))}
       </div>
-      <div className="dashboard-grid">
+      <div className={styles.stack}>
         <section className="panel">
           <div className="section-title">
             <div>
@@ -341,49 +298,6 @@ export function Overview() {
             {resources[resource].unit} · Complete record periods within each
             week only. Missing data is not zero usage.
           </p>
-        </section>
-        <section className="panel goals-preview">
-          <div className="section-title">
-            <h2>Growing towards your goals</h2>
-            <Link href="/goals" className="text-link">
-              View all <Icon name="arrow" size={16} />
-            </Link>
-          </div>
-          {goalsLoading && <p role="status">Loading goals...</p>}
-
-          {goalsError && (
-            <p className="error" role="alert">
-              {goalsError}
-            </p>
-          )}
-
-          {!goalsLoading &&
-            !goalsError &&
-            goals
-              .slice(0, 2)
-              .map((g) => <GoalCard key={g.id} goal={g} compact />)}
-
-          {!goalsLoading && !goalsError && !goals.length && (
-            <p>Create your first goal to get started.</p>
-          )}
-          <Link className="button secondary full" href="/goals">
-            Make a little commitment <Icon name="plus" size={16} />
-          </Link>
-        </section>
-      </div>
-      <div className="bottom-grid">
-        <section className="tip-card">
-          <span className="tip-icon">
-            <Icon name="leaf" size={25} />
-          </span>
-          <div>
-            <div className="eyebrow">ONE SMALL THING TO TRY</div>
-            <h3>Let the daylight do the work.</h3>
-            <p>Open your curtains before reaching for the light switch.</p>
-            <small>
-              Sample rule-based tip · Suggested for an electricity goal
-            </small>
-          </div>
         </section>
         <section className="badge-card" aria-live="polite">
           <span className="badge-medal">

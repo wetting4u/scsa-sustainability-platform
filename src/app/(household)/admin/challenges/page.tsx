@@ -1,4 +1,5 @@
 "use client";
+import { PeriodPicker } from "@/components/period-picker";
 
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -267,51 +268,40 @@ export default function AdminChallengesPage() {
                 />
               </label>
 
-              <label>
-                Start date
-                <input
-                  name="start"
-                  type="date"
-                  required
-                  defaultValue={editing?.start ?? "2026-10-01"}
-                />
-              </label>
+          <PeriodPicker
+            scope="challenge"
+            existing={
+              editing
+                ? { start: editing.start, end: editing.end }
+                : undefined
+            }
+          />
 
-              <label>
-                End date
-                <input
-                  name="end"
-                  type="date"
-                  required
-                  defaultValue={editing?.end ?? "2026-10-31"}
-                />
-              </label>
+          <label>
+            Minimum household size
+            <input
+              name="minHouseholdSize"
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              defaultValue={editing?.minHouseholdSize ?? ""}
+              placeholder="No minimum"
+            />
+          </label>
 
-              <label>
-                Minimum household size
-                <input
-                  name="minHouseholdSize"
-                  type="number"
-                  min="1"
-                  step="1"
-                  inputMode="numeric"
-                  defaultValue={editing?.minHouseholdSize ?? ""}
-                  placeholder="No minimum"
-                />
-              </label>
-
-              <label>
-                Maximum household size
-                <input
-                  name="maxHouseholdSize"
-                  type="number"
-                  min="1"
-                  step="1"
-                  inputMode="numeric"
-                  defaultValue={editing?.maxHouseholdSize ?? ""}
-                  placeholder="No maximum"
-                />
-              </label>
+          <label>
+            Maximum household size
+            <input
+              name="maxHouseholdSize"
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              defaultValue={editing?.maxHouseholdSize ?? ""}
+              placeholder="No maximum"
+            />
+          </label>
 
               <label>
                 Icon
@@ -420,17 +410,17 @@ export default function AdminChallengesPage() {
                   Edit
                 </button>
 
-                <button
-                  type="button"
-                  className="button secondary"
-                  disabled={saving || deleting !== null}
-                  onClick={() => void handleDelete(challenge)}
-                >
-                  {deleting === challenge.id ? "Deleting..." : "Delete"}
-                </button>
-              </div>
-            </article>
-          ))}
+        <button
+          type="button"
+          className="button secondary"
+          disabled={saving || deleting !== null}
+          onClick={() => void handleDelete(challenge)}
+        >
+          {deleting === challenge.id ? "Deleting..." : "Delete"}
+        </button>
+        </div>
+        </article>
+        ))}
       </div>
 
       {!loading && !error && challenges.length === 0 && (
