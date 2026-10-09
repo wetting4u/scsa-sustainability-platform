@@ -1,4 +1,5 @@
 "use client";
+import { PeriodPicker } from "@/components/period-picker";
 
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -12,10 +13,7 @@ import {
 } from "@/features/records/domain";
 import { goalsApi } from "./client";
 
-function calculateGoalUsage(
-  goal: Goal,
-  records: UsageRecord[],
-) {
+function calculateGoalUsage(goal: Goal, records: UsageRecord[]) {
   return records
     .filter(
       (record) =>
@@ -74,10 +72,7 @@ export function GoalCard({
     };
   }, [goal, usageRecords]);
 
-  const percent =
-    goal.target > 0
-      ? Math.round((total / goal.target) * 100)
-      : 0;
+  const percent = goal.target > 0 ? Math.round((total / goal.target) * 100) : 0;
 
   return (
     <article className={compact ? "goal-card compact" : "panel goal-card"}>
@@ -203,20 +198,13 @@ export function Goals() {
     setError("");
   }
 
-  async function handleGoalSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleGoalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
     const resourceValue = String(formData.get("resource"));
 
-    if (
-      !Object.prototype.hasOwnProperty.call(
-        resources,
-        resourceValue,
-      )
-    ) {
+    if (!Object.prototype.hasOwnProperty.call(resources, resourceValue)) {
       setError("Choose a valid resource.");
       return;
     }
@@ -255,9 +243,7 @@ export function Goals() {
 
         setGoals((currentGoals) =>
           currentGoals.map((currentGoal) =>
-            currentGoal.id === editing.id
-              ? result.data
-              : currentGoal,
+            currentGoal.id === editing.id ? result.data : currentGoal,
           ),
         );
 
@@ -265,10 +251,7 @@ export function Goals() {
       } else {
         const result = await goalsApi.create(goal);
 
-        setGoals((currentGoals) => [
-          result.data,
-          ...currentGoals,
-        ]);
+        setGoals((currentGoals) => [result.data, ...currentGoals]);
 
         setMessage("Goal created.");
       }
@@ -299,9 +282,7 @@ export function Goals() {
     try {
       await goalsApi.remove(id);
 
-      setGoals((currentGoals) =>
-        currentGoals.filter((goal) => goal.id !== id),
-      );
+      setGoals((currentGoals) => currentGoals.filter((goal) => goal.id !== id));
 
       setMessage("Goal deleted.");
     } catch (requestError) {
@@ -322,10 +303,7 @@ export function Goals() {
         title="Goals with purpose."
         description="Choose a manageable household limit and follow your progress."
         action={
-          <button
-            className="button primary"
-            onClick={() => openForm()}
-          >
+          <button className="button primary" onClick={() => openForm()}>
             <Icon name="plus" />
             Create goal
           </button>
@@ -354,10 +332,7 @@ export function Goals() {
         <section className="panel form-panel">
           <h2>{editing ? "Edit goal" : "Create a household goal"}</h2>
 
-          <form
-            key={editing?.id ?? "new-goal"}
-            onSubmit={handleGoalSubmit}
-          >
+          <form key={editing?.id ?? "new-goal"} onSubmit={handleGoalSubmit}>
             <div className="form-grid">
               <label>
                 Goal name
@@ -396,25 +371,14 @@ export function Goals() {
                 />
               </label>
 
-              <label>
-                Start date
-                <input
-                  name="start"
-                  type="date"
-                  defaultValue={editing?.start ?? "2026-09-01"}
-                  required
-                />
-              </label>
-
-              <label>
-                End date
-                <input
-                  name="end"
-                  type="date"
-                  defaultValue={editing?.end ?? "2026-09-30"}
-                  required
-                />
-              </label>
+              <PeriodPicker
+                scope="goal"
+                existing={
+                  editing
+                    ? { start: editing.start, end: editing.end }
+                    : undefined
+                }
+              />
             </div>
 
             {error && (

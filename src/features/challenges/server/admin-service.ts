@@ -1,4 +1,5 @@
 import "server-only";
+import { validatePeriod, validatePeriodChange } from "@/lib/periods";
 
 import { requireAdmin } from "@/features/admin/server/authorization";
 import { resources, type Resource } from "@/features/records/domain";
@@ -173,6 +174,9 @@ export async function createAdminChallenge(request: Request) {
 
   const challenge = input.value;
 
+  const periodError = validatePeriod(challenge, "challenge");
+  if (periodError) return apiError(400, "INVALID_PERIOD", periodError);
+
   const { data, error } = await admin.supabase
     .from("challenges")
     .insert({
@@ -226,6 +230,26 @@ export async function updateAdminChallenge(
   }
 
   const challenge = input.value;
+
+  const { data: existing, error: existingError } = await admin.supabase
+    .from("challenges")
+    .select("start_date, end_date")
+    .eq("id", challengeId)
+    .maybeSingle();
+  if (existingError)
+    return apiError(
+      500,
+      "CHALLENGE_QUERY_FAILED",
+      "Unable to check the saved challenge.",
+    );
+  if (!existing)
+    return apiError(404, "CHALLENGE_NOT_FOUND", "Challenge not found.");
+  const periodError = validatePeriodChange(
+    challenge,
+    { start: existing.start_date, end: existing.end_date },
+    "challenge",
+  );
+  if (periodError) return apiError(400, "INVALID_PERIOD", periodError);
 
   const { data, error } = await admin.supabase
     .from("challenges")

@@ -1,24 +1,15 @@
 "use client";
+import { PeriodPicker } from "@/components/period-picker";
 
-import {
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { Icon, PageHeading } from "@/components/ui";
-import {
-  resources,
-  type Resource,
-} from "@/features/records/domain";
+import { resources, type Resource } from "@/features/records/domain";
 import {
   adminChallengesApi,
   challengesApi,
 } from "@/features/challenges/client";
-import type {
-  Challenge,
-  ChallengeInput,
-} from "@/features/challenges/domain";
+import type { Challenge, ChallengeInput } from "@/features/challenges/domain";
 
 export default function AdminChallengesPage() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
@@ -69,21 +60,15 @@ export default function AdminChallengesPage() {
     setShowForm(false);
   }
 
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
 
     const challenge: ChallengeInput = {
       title: String(formData.get("title") ?? "").trim(),
-      description: String(
-        formData.get("description") ?? "",
-      ).trim(),
-      resource: String(
-        formData.get("resource") ?? "electricity",
-      ) as Resource,
+      description: String(formData.get("description") ?? "").trim(),
+      resource: String(formData.get("resource") ?? "electricity") as Resource,
       target: Number(formData.get("target")),
       start: String(formData.get("start") ?? ""),
       end: String(formData.get("end") ?? ""),
@@ -113,26 +98,17 @@ export default function AdminChallengesPage() {
 
     try {
       if (editing) {
-        const result = await adminChallengesApi.update(
-          editing.id,
-          challenge,
-        );
+        const result = await adminChallengesApi.update(editing.id, challenge);
 
         setChallenges((current) =>
-          current.map((item) =>
-            item.id === editing.id ? result.data : item,
-          ),
+          current.map((item) => (item.id === editing.id ? result.data : item)),
         );
 
         setMessage("Challenge updated successfully.");
       } else {
-        const result =
-          await adminChallengesApi.create(challenge);
+        const result = await adminChallengesApi.create(challenge);
 
-        setChallenges((current) => [
-          ...current,
-          result.data,
-        ]);
+        setChallenges((current) => [...current, result.data]);
 
         setMessage("Challenge created successfully.");
       }
@@ -217,14 +193,9 @@ export default function AdminChallengesPage() {
 
       {showForm && (
         <section className="panel form-panel">
-          <h2>
-            {editing ? "Edit challenge" : "Create challenge"}
-          </h2>
+          <h2>{editing ? "Edit challenge" : "Create challenge"}</h2>
 
-          <form
-            key={editing?.id ?? "new-challenge"}
-            onSubmit={handleSubmit}
-          >
+          <form key={editing?.id ?? "new-challenge"} onSubmit={handleSubmit}>
             <div className="form-grid">
               <label>
                 Challenge name
@@ -241,17 +212,13 @@ export default function AdminChallengesPage() {
                 Resource
                 <select
                   name="resource"
-                  defaultValue={
-                    editing?.resource ?? "electricity"
-                  }
+                  defaultValue={editing?.resource ?? "electricity"}
                 >
-                  {Object.entries(resources).map(
-                    ([value, resource]) => (
-                      <option value={value} key={value}>
-                        {resource.label} ({resource.unit})
-                      </option>
-                    ),
-                  )}
+                  {Object.entries(resources).map(([value, resource]) => (
+                    <option value={value} key={value}>
+                      {resource.label} ({resource.unit})
+                    </option>
+                  ))}
                 </select>
               </label>
 
@@ -273,42 +240,22 @@ export default function AdminChallengesPage() {
                   name="tag"
                   required
                   maxLength={50}
-                  defaultValue={
-                    editing?.tag ?? "HOUSEHOLD CHALLENGE"
-                  }
+                  defaultValue={editing?.tag ?? "HOUSEHOLD CHALLENGE"}
                 />
               </label>
 
-              <label>
-                Start date
-                <input
-                  name="start"
-                  type="date"
-                  required
-                  defaultValue={
-                    editing?.start ?? "2026-10-01"
-                  }
-                />
-              </label>
-
-              <label>
-                End date
-                <input
-                  name="end"
-                  type="date"
-                  required
-                  defaultValue={
-                    editing?.end ?? "2026-10-31"
-                  }
-                />
-              </label>
+              <PeriodPicker
+                scope="challenge"
+                existing={
+                  editing
+                    ? { start: editing.start, end: editing.end }
+                    : undefined
+                }
+              />
 
               <label>
                 Icon
-                <select
-                  name="icon"
-                  defaultValue={editing?.icon ?? "sprout"}
-                >
+                <select name="icon" defaultValue={editing?.icon ?? "sprout"}>
                   <option value="sprout">Sprout</option>
                   <option value="bolt">Electricity bolt</option>
                   <option value="drop">Water drop</option>
@@ -363,9 +310,7 @@ export default function AdminChallengesPage() {
       <div className="section-title">
         <h2>Current challenges</h2>
         <span>
-          {loading
-            ? "Loading..."
-            : `${challenges.length} challenges`}
+          {loading ? "Loading..." : `${challenges.length} challenges`}
         </span>
       </div>
 
@@ -406,9 +351,7 @@ export default function AdminChallengesPage() {
                 disabled={deleting === challenge.id}
                 onClick={() => void handleDelete(challenge)}
               >
-                {deleting === challenge.id
-                  ? "Deleting..."
-                  : "Delete"}
+                {deleting === challenge.id ? "Deleting..." : "Delete"}
               </button>
             </div>
           </article>

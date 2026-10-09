@@ -791,7 +791,8 @@ label {
   font-weight: 600;
 }
 input,
-select {
+select,
+.form-grid textarea {
   min-height: 43px;
   width: 100%;
   border: 1px solid #cfd8c9;
@@ -800,6 +801,11 @@ select {
   color: #314b37;
   padding: 9px 12px;
   font-weight: 400;
+}
+.form-grid textarea {
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
 }
 .filter-label {
   flex-direction: row;
