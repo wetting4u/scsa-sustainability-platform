@@ -6,15 +6,13 @@ import { Icon, PageHeading } from "@/components/ui";
 import {
   resources,
   totalFor,
-  type Goal,
   type Resource,
   type UsageRecord,
 } from "@/features/records/domain";
 
-import { GoalCard } from "@/features/goals/goals";
+import styles from "./overview.module.css";
 import { createClient } from "@/lib/supabase/client";
 export function Overview() {
-  const [goals, setGoals] = useState<Goal[]>([]);
 
 const [records, setRecords] = useState<UsageRecord[]>([]);
 const [loading, setLoading] = useState(true);
@@ -162,7 +160,7 @@ useEffect(() => {
           </article>
         ))}
       </div>
-      <div className="dashboard-grid">
+      <div className={styles.stack}>
         <section className="panel">
           <div className="section-title">
             <div>
@@ -206,36 +204,6 @@ useEffect(() => {
             week only. Missing data is not zero usage.
           </p>
         </section>
-        <section className="panel goals-preview">
-          <div className="section-title">
-            <h2>Growing towards your goals</h2>
-            <Link href="/goals" className="text-link">
-              View all <Icon name="arrow" size={16} />
-            </Link>
-          </div>
-          {goals.slice(0, 2).map((g) => (
-            <GoalCard key={g.id} goal={g} compact />
-          ))}
-          {!goals.length && <p>Create your first goal to get started.</p>}
-          <Link className="button secondary full" href="/goals">
-            Make a little commitment <Icon name="plus" size={16} />
-          </Link>
-        </section>
-      </div>
-      <div className="bottom-grid">
-        <section className="tip-card">
-          <span className="tip-icon">
-            <Icon name="leaf" size={25} />
-          </span>
-          <div>
-            <div className="eyebrow">ONE SMALL THING TO TRY</div>
-            <h3>Let the daylight do the work.</h3>
-            <p>Open your curtains before reaching for the light switch.</p>
-            <small>
-              Sample rule-based tip · Suggested for an electricity goal
-            </small>
-          </div>
-        </section>
         <section className="badge-card">
           <span className="badge-medal">
             <Icon name="award" size={34} />
@@ -254,39 +222,4 @@ useEffect(() => {
       </div>
     </>
   );
-  useEffect(() => {
-  async function loadGoals() {
-    const supabase = createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("goals")
-      .select("id, title, resource, target, start_date, end_date")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setGoals(
-      (data ?? []).map((goal) => ({
-        id: goal.id,
-        title: goal.title,
-        resource: goal.resource as Resource,
-        target: Number(goal.target),
-        start: goal.start_date,
-        end: goal.end_date,
-      })),
-    );
-  }
-
-  void loadGoals();
-}, []);
 }

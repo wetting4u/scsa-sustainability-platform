@@ -314,14 +314,6 @@ export function Settings() {
               <span />
             </button>
           </div>
-          <div className="privacy-summary" role="status">
-            <Icon name="shield" />
-            <span>
-              {!analytics && !leaderboard
-                ? "Both sharing preferences are off."
-                : `${analytics ? "Community reporting enabled." : "Community reporting disabled."} ${leaderboard ? "Leaderboard preference enabled (future feature)." : "Leaderboard preference disabled."}`}
-            </span>
-          </div>
         </section>
       </div>
       <p role="status" className={message ? "success" : ""}>
