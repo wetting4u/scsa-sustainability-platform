@@ -154,6 +154,14 @@ const [recordsError, setRecordsError] = useState("");
   );
   const max = Math.max(...values, 1);
   const latestBadge = badges[0];
+  const badgeIcon =
+  latestBadge?.icon === "drop" ||
+  latestBadge?.icon === "bolt" ||
+  latestBadge?.icon === "sprout" ||
+  latestBadge?.icon === "leaf" ||
+  latestBadge?.icon === "award"
+    ? latestBadge.icon
+    : "award";
   return (
     <>
       <PageHeading
@@ -301,7 +309,7 @@ const [recordsError, setRecordsError] = useState("");
         </section>
         <section className="badge-card" aria-live="polite">
           <span className="badge-medal">
-            <Icon name="award" size={34} />
+            <Icon name={badgeIcon} size={34} />
           </span>
 
           <div>
