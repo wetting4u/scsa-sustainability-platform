@@ -91,6 +91,16 @@ export default function AdminUsersPage() {
     }
 
     const disabled = selectedUser.status === "active";
+    if (
+      disabled &&
+      !window.confirm(
+        `Disable ${selectedUser.email}?\n\n` +
+        "This user will lose access to protected pages and APIs. " +
+        "Their account and data will be kept, and you can restore access later."
+      )
+    ) {
+      return;
+    }
 
     setWorkingId(userId);
     setMessage("");
