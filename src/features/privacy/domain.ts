@@ -3,6 +3,7 @@ export type HouseholdProfile = {
   householdSize: number;
   shareAnalytics: boolean;
   displayLeaderboard: boolean;
+  communityAreaId: string | null;
 };
 
 export type HouseholdProfilePatch = Partial<HouseholdProfile>;
@@ -15,6 +16,7 @@ const allowedProfileFields = new Set<keyof HouseholdProfile>([
   "householdSize",
   "shareAnalytics",
   "displayLeaderboard",
+  "communityAreaId",
 ]);
 
 export function validateProfilePatch(input: unknown): ProfilePatchResult {
@@ -85,6 +87,30 @@ export function validateProfilePatch(input: unknown): ProfilePatchResult {
 
     patch[field] = values[field];
   }
+  if (Object.hasOwn(values, "communityAreaId")) {
+  const areaId = values.communityAreaId;
+
+  if (areaId === null) {
+    patch.communityAreaId = null;
+  } else if (typeof areaId === "string") {
+    const uuidPattern =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (!uuidPattern.test(areaId)) {
+      return {
+        data: null,
+        error: "Please select a valid Community Area.",
+      };
+    }
+
+    patch.communityAreaId = areaId;
+  } else {
+    return {
+      data: null,
+      error: "Please select a valid Community Area.",
+    };
+  }
+}
 
   return { data: patch, error: null };
 }

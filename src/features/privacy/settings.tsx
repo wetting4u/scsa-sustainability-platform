@@ -5,11 +5,18 @@ import { createClient } from "@/lib/supabase/client";
 import { Icon, PageHeading } from "@/components/ui";
 import { isStrongPassword } from "@/features/auth/domain";
 import { profileApi } from "./client";
+type CommunityArea = {
+  id: string;
+  name: string;
+};
 export function Settings() {
   const [analytics, setAnalytics] = useState(false);
   const [leaderboard, setLeaderboard] = useState(false);
   const [household, setHousehold] = useState("");
   const [householdSize, setHouseholdSize] = useState(1);
+  const [communityAreaId, setCommunityAreaId] = useState("");
+  const [communityAreas, setCommunityAreas] = useState<CommunityArea[]>([]);
+  const [communityAreasLoading, setCommunityAreasLoading] = useState(true);
   const [message, setMessage] = useState("");
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -31,6 +38,7 @@ export function Settings() {
           setHouseholdSize(data.householdSize);
           setAnalytics(data.shareAnalytics);
           setLeaderboard(data.displayLeaderboard);
+          setCommunityAreaId(data.communityAreaId ?? "");
         }
       } catch (profileError) {
         if (active) {
@@ -43,7 +51,32 @@ export function Settings() {
       }
     }
 
+    async function loadCommunityAreas() {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("community_areas")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+
+    if (!active) {
+      return;
+    }
+
+    if (error) {
+      console.error(error);
+      setMessage("Unable to load Community Areas.");
+      setCommunityAreasLoading(false);
+      return;
+    }
+
+    setCommunityAreas((data ?? []) as CommunityArea[]);
+    setCommunityAreasLoading(false);
+  }
+
     void loadProfile();
+    void loadCommunityAreas();
 
     return () => {
       active = false;
@@ -58,6 +91,10 @@ export function Settings() {
     const value = String(formData.get("household") ?? "").trim();
 
     const size = Number(formData.get("householdSize"));
+
+    const selectedCommunityAreaId = String(
+    formData.get("communityAreaId") ?? "",
+    ).trim();
 
     if (!value) {
       setMessage("Please enter a household name.");
@@ -76,12 +113,14 @@ export function Settings() {
       const { data } = await profileApi.update({
         displayName: value,
         householdSize: size,
+        communityAreaId: selectedCommunityAreaId || null,
       });
 
       setHousehold(data.displayName);
       setHouseholdSize(data.householdSize);
       setAnalytics(data.shareAnalytics);
       setLeaderboard(data.displayLeaderboard);
+      setCommunityAreaId(data.communityAreaId ?? "");
       setProfileUpdated(true);
       router.refresh();
     } catch (profileError) {
@@ -198,9 +237,30 @@ export function Settings() {
                 required
               />
             </label>
+            <label>
+              Community Area
+              <select
+                name="communityAreaId"
+                value={communityAreaId}
+                onChange={(event) => setCommunityAreaId(event.target.value)}
+                disabled={communityAreasLoading || saving}
+              >
+                <option value="">
+                  {communityAreasLoading
+                    ? "Loading Community Areas..."
+                    : "Select your Community Area"}
+                </option>
+
+                {communityAreas.map((area) => (
+                  <option key={area.id} value={area.id}>
+                    {area.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <p className="caption">
-              You can update this name at any time. No address or personal
-              details are required.
+              Choose the Community Area that best matches your household.
+              No street address or postcode is required.
             </p>
             <button className="button primary" type="submit" disabled={saving}>
               {saving ? "Saving..." : "Save profile"}
