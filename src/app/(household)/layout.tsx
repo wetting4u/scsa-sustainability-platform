@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
 import { Shell } from "@/components/shell";
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveUser } from "@/features/auth/server/authorization";
 
 export const dynamic = "force-dynamic";
 
@@ -11,26 +11,24 @@ export default async function HouseholdLayout({
 }: {
   children: ReactNode;
 }) {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!authorization.ok) {
     redirect("/sign-in");
   }
+
+  const { supabase, userId } = authorization;
 
   const { data: profile } = await supabase
     .from("household_profiles")
     .select("display_name")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   const { data: accountRole } = await supabase
     .from("account_roles")
     .select("role")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   const householdName = profile?.display_name ?? "My household";

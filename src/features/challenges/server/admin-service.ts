@@ -3,6 +3,7 @@ import { validatePeriod, validatePeriodChange } from "@/lib/periods";
 
 import { requireAdmin } from "@/features/admin/server/authorization";
 import { resources, type Resource } from "@/features/records/domain";
+import { apiError, noStoreHeaders } from "@/lib/api/response";
 import type { Challenge, ChallengeInput } from "../domain";
 
 type ChallengeRow = {
@@ -26,25 +27,6 @@ type InputResult =
       ok: false;
       response: Response;
     };
-
-const noStoreHeaders = {
-  "Cache-Control": "no-store",
-};
-
-function apiError(status: number, code: string, message: string) {
-  return Response.json(
-    {
-      error: {
-        code,
-        message,
-      },
-    },
-    {
-      status,
-      headers: noStoreHeaders,
-    },
-  );
-}
 
 function mapChallenge(row: ChallengeRow): Challenge {
   const days =

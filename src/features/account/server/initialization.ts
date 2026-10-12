@@ -5,7 +5,7 @@ import {
   type AccountRoleInitializationRow,
   type HouseholdInitializationRow,
 } from "@/features/account/domain";
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveUser } from "@/features/auth/server/authorization";
 
 const noStoreHeaders = {
   "Cache-Control": "no-store",
@@ -27,31 +27,24 @@ function apiError(status: number, code: string, message: string) {
 }
 
 export async function getAccountInitialization() {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must confirm your email or sign in before checking account setup.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   const [profileResult, roleResult] = await Promise.all([
     supabase
       .from("household_profiles")
       .select("user_id, share_analytics, display_leaderboard")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle(),
     supabase
       .from("account_roles")
       .select("user_id, role")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle(),
   ]);
 
@@ -64,7 +57,7 @@ export async function getAccountInitialization() {
   }
 
   const status = inspectAccountInitialization(
-    user.id,
+    userId,
     profileResult.data as HouseholdInitializationRow | null,
     roleResult.data as AccountRoleInitializationRow | null,
   );

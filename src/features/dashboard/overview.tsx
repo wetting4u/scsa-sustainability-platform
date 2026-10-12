@@ -9,9 +9,11 @@ import {
   type Resource,
   type UsageRecord,
 } from "@/features/records/domain";
+import { recordsApi } from "@/features/records/client";
 
 import styles from "./overview.module.css";
 import { createClient } from "@/lib/supabase/client";
+
 type EarnedBadge = {
   id: string;
   name: string;
@@ -29,60 +31,34 @@ type BadgeQueryRow = {
     icon: string;
   } | null;
 };
-
 export function Overview() {
+  const [records, setRecords] = useState<UsageRecord[]>([]);
+  const [resource, setResource] = useState<Resource>("electricity");
+  const [loading, setLoading] = useState(true);
+  const [recordsError, setRecordsError] = useState("");
 
-const [badges, setBadges] = useState<EarnedBadge[]>([]);
-const [badgesLoading, setBadgesLoading] = useState(true);
-const [badgesError, setBadgesError] = useState("");
+  const [badges, setBadges] = useState<EarnedBadge[]>([]);
+  const [badgesLoading, setBadgesLoading] = useState(true);
+  const [badgesError, setBadgesError] = useState("");
 
-const [records, setRecords] = useState<UsageRecord[]>([]);
-const [loading, setLoading] = useState(true);
-const [resource, setResource] = useState<Resource>("electricity");
-const [recordsError, setRecordsError] = useState("");
-
-  useEffect(() => {
-    async function loadRecords() {
-      const supabase = createClient();
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("usage_records")
-        .select("id, resource, start_date, end_date, amount")
-        .eq("user_id", user.id)
-        .order("end_date", { ascending: true });
-
-      if (error) {
-        console.error(error);
-        setRecordsError("Unable to load your resource records.");
-        setLoading(false);
-        return;
-      }
-
-      setRecords(
-        (data ?? []).map((record) => ({
-          id: record.id,
-          resource: record.resource as Resource,
-          start: record.start_date,
-          end: record.end_date,
-          amount: Number(record.amount),
-        })),
-      );
-
+useEffect(() => {
+  async function loadRecords() {
+    try {
+      const { data } = await recordsApi.list();
+      setRecords(data);
+      setRecordsError("");
+    } catch (error) {
+      console.error(error);
+      setRecords([]);
+      setRecordsError("Unable to load your resource records.");
+    } finally {
       setLoading(false);
+    }
     }
 
     void loadRecords();
   }, []);
- 
+
   useEffect(() => {
     async function loadBadges() {
       const supabase = createClient();
@@ -140,6 +116,7 @@ const [recordsError, setRecordsError] = useState("");
 
     void loadBadges();
   }, []);
+
   const weeks = [
     ["01–07 Sep", "2026-09-01", "2026-09-07"],
     ["08–14 Sep", "2026-09-08", "2026-09-14"],

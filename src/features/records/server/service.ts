@@ -1,11 +1,7 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
-import {
-  validateRecord,
-  type Resource,
-  type UsageRecord,
-} from "../domain";
+import { requireActiveUser } from "@/features/auth/server/authorization";
+import { validateRecord, type Resource, type UsageRecord } from "../domain";
 
 type UsageRecordRow = {
   id: string;
@@ -35,25 +31,18 @@ function apiError(status: number, code: string, message: string) {
 }
 
 export async function listRecords() {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before viewing usage records.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   const { data, error } = await supabase
     .from("usage_records")
     .select("id, resource, start_date, end_date, amount")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .order("end_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -84,20 +73,13 @@ export async function listRecords() {
   );
 }
 export async function createRecord(request: Request) {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before creating usage records.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   let body: unknown;
 
@@ -129,7 +111,7 @@ export async function createRecord(request: Request) {
   const { data: overlappingRecord, error: overlapError } = await supabase
     .from("usage_records")
     .select("id")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("resource", record.resource)
     .lte("start_date", record.end)
     .gte("end_date", record.start)
@@ -155,7 +137,7 @@ export async function createRecord(request: Request) {
   const { data, error } = await supabase
     .from("usage_records")
     .insert({
-      user_id: user.id,
+      user_id: userId,
       resource: record.resource,
       start_date: record.start,
       end_date: record.end,
@@ -199,20 +181,13 @@ export async function createRecord(request: Request) {
   );
 }
 export async function updateRecord(request: Request, recordId: string) {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before updating usage records.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   let body: unknown;
 
@@ -244,7 +219,7 @@ export async function updateRecord(request: Request, recordId: string) {
   const { data: overlappingRecord, error: overlapError } = await supabase
     .from("usage_records")
     .select("id")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("resource", record.resource)
     .neq("id", recordId)
     .lte("start_date", record.end)
@@ -277,7 +252,7 @@ export async function updateRecord(request: Request, recordId: string) {
       amount: record.amount,
     })
     .eq("id", recordId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .select("id, resource, start_date, end_date, amount")
     .maybeSingle();
 
@@ -320,26 +295,19 @@ export async function updateRecord(request: Request, recordId: string) {
   );
 }
 export async function deleteRecord(recordId: string) {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before deleting usage records.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   const { data, error } = await supabase
     .from("usage_records")
     .delete()
     .eq("id", recordId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .select("id")
     .maybeSingle();
 

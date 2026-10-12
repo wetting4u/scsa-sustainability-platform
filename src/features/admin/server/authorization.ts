@@ -1,9 +1,13 @@
 import "server-only";
 
 import { getAdminAccessFailure } from "@/features/admin/authorization";
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveUser } from "@/features/auth/server/authorization";
+import { apiError } from "@/lib/api/response";
 
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+type SupabaseClient = Extract<
+  Awaited<ReturnType<typeof requireActiveUser>>,
+  { ok: true }
+>["supabase"];
 
 export type AdminAuthorization =
   | {
@@ -16,49 +20,23 @@ export type AdminAuthorization =
       response: Response;
     };
 
-const noStoreHeaders = {
-  "Cache-Control": "no-store",
-};
-
 function accessDenied(
   failure: NonNullable<ReturnType<typeof getAdminAccessFailure>>,
 ) {
-  return Response.json(
-    {
-      error: {
-        code: failure.code,
-        message: failure.message,
-      },
-    },
-    {
-      status: failure.status,
-      headers: noStoreHeaders,
-    },
-  );
+  return apiError(failure.status, failure.code, failure.message);
 }
 
 export async function requireAdmin(): Promise<AdminAuthorization> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const account = await requireActiveUser();
 
-    if (authError || !user) {
-    return {
-      ok: false,
-      response: accessDenied({
-        status: 401,
-        code: "UNAUTHENTICATED",
-        message: "You must sign in before using administrator features.",
-      }),
-    };
+  if (!account.ok) {
+    return account;
   }
 
-  const { data: roleRecord, error: roleError } = await supabase
+  const { data: roleRecord, error: roleError } = await account.supabase
     .from("account_roles")
     .select("role")
-    .eq("user_id", user!.id)
+    .eq("user_id", account.userId)
     .maybeSingle();
 
   const authorizationFailure = getAdminAccessFailure({
@@ -76,7 +54,7 @@ export async function requireAdmin(): Promise<AdminAuthorization> {
 
   return {
     ok: true,
-    supabase,
-    userId: user!.id,
+    supabase: account.supabase,
+    userId: account.userId,
   };
 }

@@ -4,7 +4,7 @@ import {
   validateProfilePatch,
   type HouseholdProfile,
 } from "@/features/privacy/domain";
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveUser } from "@/features/auth/server/authorization";
 
 type HouseholdProfileRow = {
   display_name: string;
@@ -42,23 +42,19 @@ function mapProfile(row: HouseholdProfileRow): HouseholdProfile {
 }
 
 async function authenticatedProfileClient() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  const authorization = await requireActiveUser();
 
-  if (error || !user) {
+  if (!authorization.ok) {
     return {
-      error: apiError(
-        401,
-        "UNAUTHENTICATED",
-        "You must sign in before accessing your household profile.",
-      ),
+      error: authorization.response,
     } as const;
   }
 
-  return { supabase, userId: user.id, error: null } as const;
+  return {
+    supabase: authorization.supabase,
+    userId: authorization.userId,
+    error: null,
+  } as const;
 }
 
 export async function getProfile() {

@@ -1,7 +1,7 @@
 import "server-only";
 import { validatePeriod, validatePeriodChange } from "@/lib/periods";
 
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveUser } from "@/features/auth/server/authorization";
 import { resources, type Goal, type Resource } from "@/features/records/domain";
 
 type GoalRow = {
@@ -56,25 +56,18 @@ function mapGoal(row: GoalRow): Goal {
 }
 
 export async function listGoals() {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before viewing goals.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   const { data, error } = await supabase
     .from("goals")
     .select("id, title, resource, target, start_date, end_date")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -95,20 +88,13 @@ export async function listGoals() {
 }
 
 export async function createGoal(request: Request) {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before creating goals.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   let body: unknown;
 
@@ -171,7 +157,7 @@ export async function createGoal(request: Request) {
   const { data, error } = await supabase
     .from("goals")
     .insert({
-      user_id: user.id,
+      user_id: userId,
       title: goal.title,
       resource: goal.resource,
       target: goal.target,
@@ -196,20 +182,13 @@ export async function createGoal(request: Request) {
   );
 }
 export async function updateGoal(request: Request, goalId: string) {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before updating goals.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   let body: unknown;
 
@@ -270,7 +249,7 @@ export async function updateGoal(request: Request, goalId: string) {
     .from("goals")
     .select("start_date, end_date")
     .eq("id", goalId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
   if (existingError)
     return apiError(
@@ -296,7 +275,7 @@ export async function updateGoal(request: Request, goalId: string) {
       end_date: goal.end,
     })
     .eq("id", goalId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .select("id, title, resource, target, start_date, end_date")
     .maybeSingle();
 
@@ -320,26 +299,19 @@ export async function updateGoal(request: Request, goalId: string) {
 }
 
 export async function deleteGoal(goalId: string) {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before deleting goals.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   const { data, error } = await supabase
     .from("goals")
     .delete()
     .eq("id", goalId)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .select("id")
     .maybeSingle();
 

@@ -48,6 +48,7 @@ const messagesByCode: Record<string, string> = {
   over_email_send_rate_limit: "Please wait before requesting another email.",
   over_request_rate_limit: "Too many attempts. Please wait and try again.",
   same_password: "Choose a password you have not used for this account.",
+  user_banned: "This account has been disabled by an administrator.",
   user_already_exists:
     "This email is already registered. Try signing in instead.",
   weak_password:

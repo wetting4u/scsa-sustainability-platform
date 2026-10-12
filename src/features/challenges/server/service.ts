@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
+import { requireActiveUser } from "@/features/auth/server/authorization";
 import type { Resource } from "@/features/records/domain";
 import type { Challenge } from "../domain";
 
@@ -56,20 +56,13 @@ function mapChallenge(row: ChallengeRow): Challenge {
 }
 
 export async function listChallenges() {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before viewing challenges.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase } = authorization;
 
   const { data, error } = await supabase
     .from("challenges")
@@ -98,25 +91,18 @@ export async function listChallenges() {
 }
 
 export async function listChallengeMemberships() {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before viewing challenge memberships.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   const { data, error } = await supabase
     .from("challenge_memberships")
     .select("challenge_id")
-    .eq("user_id", user.id);
+    .eq("user_id", userId);
 
   if (error) {
     return apiError(
@@ -138,20 +124,13 @@ export async function listChallengeMemberships() {
 }
 
 export async function joinChallenge(challengeId: string) {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before joining a challenge.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   const { data: challenge, error: challengeError } = await supabase
     .from("challenges")
@@ -171,18 +150,16 @@ export async function joinChallenge(challengeId: string) {
     return apiError(404, "CHALLENGE_NOT_FOUND", "Challenge not found.");
   }
 
-  const { error } = await supabase
-    .from("challenge_memberships")
-    .upsert(
-      {
-        user_id: user.id,
-        challenge_id: challengeId,
-      },
-      {
-        onConflict: "user_id,challenge_id",
-        ignoreDuplicates: true,
-      },
-    );
+  const { error } = await supabase.from("challenge_memberships").upsert(
+    {
+      user_id: userId,
+      challenge_id: challengeId,
+    },
+    {
+      onConflict: "user_id,challenge_id",
+      ignoreDuplicates: true,
+    },
+  );
 
   if (error) {
     return apiError(
@@ -207,25 +184,18 @@ export async function joinChallenge(challengeId: string) {
 }
 
 export async function leaveChallenge(challengeId: string) {
-  const supabase = await createClient();
+  const authorization = await requireActiveUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return apiError(
-      401,
-      "UNAUTHENTICATED",
-      "You must sign in before leaving a challenge.",
-    );
+  if (!authorization.ok) {
+    return authorization.response;
   }
+
+  const { supabase, userId } = authorization;
 
   const { error } = await supabase
     .from("challenge_memberships")
     .delete()
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("challenge_id", challengeId);
 
   if (error) {

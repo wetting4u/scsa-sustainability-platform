@@ -18,3 +18,16 @@ export function createAdminClient() {
     },
   });
 }
+
+export function tryCreateAdminClient() {
+  try {
+    return {
+      ok: true as const,
+      client: createAdminClient(),
+    };
+  } catch {
+    return {
+      ok: false as const,
+    };
+  }
+}
