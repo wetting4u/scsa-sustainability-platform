@@ -18,9 +18,9 @@ export function Community() {
             One shared future.
           </h2>
           <p>
-            Community reporting brings consenting households’
+            Community reporting brings consenting households together,
             <br />
-            progress together while keeping individual records private.
+            showing shared progress while keeping individual records private.
           </p>
         </div>
         <div className="challenge-emblem">
