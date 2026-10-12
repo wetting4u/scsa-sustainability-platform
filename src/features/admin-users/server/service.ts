@@ -1,48 +1,29 @@
 import "server-only";
 
 import { requireAdmin } from "@/features/admin/server/authorization";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { apiError, noStoreHeaders } from "@/lib/api/response";
+import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import {
   validateCreateAdminUser,
   validateUpdateAdminUser,
   type AdminManagedUser,
 } from "../domain";
 
-const noStoreHeaders = {
-  "Cache-Control": "no-store",
-};
-
-function apiError(status: number, code: string, message: string) {
-  return Response.json(
-    {
-      error: {
-        code,
-        message,
-      },
-    },
-    {
-      status,
-      headers: noStoreHeaders,
-    },
-  );
-}
-
 function getAdminClient() {
-  try {
+  const result = tryCreateAdminClient();
+
+  if (!result.ok) {
     return {
-      ok: true as const,
-      client: createAdminClient(),
-    };
-  } catch {
-    return {
-      ok: false as const,
+      ...result,
       response: apiError(
         503,
         "ADMIN_SERVICE_UNAVAILABLE",
         "Administrator account management is not configured.",
       ),
-    };
+    } as const;
   }
+
+  return result;
 }
 
 export async function listAdminUsers() {

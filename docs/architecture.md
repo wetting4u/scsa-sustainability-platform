@@ -25,12 +25,16 @@ src/
     client.ts               未来调用 API 的适配层，当前未接入 UI
     server/service.ts       后端占位逻辑，目前返回 501
   features/auth/domain.ts   密码规则和认证错误映射
+  features/auth/authorization.ts 账号启用状态的纯业务判定
+  features/auth/server/authorization.ts 共用 requireActiveUser 服务端守卫
   features/account/         注册后资料初始化验证
   features/admin/           共用管理员授权规则与服务端 requireAdmin
   features/admin-users/     BE-05 用户管理 DTO、客户端和服务端逻辑
   features/privacy/         Profile API、客户端适配与 Settings 页面
   features/...              其他功能模块
   lib/supabase/             浏览器、服务器客户端及环境变量配置
+  lib/api/response.ts       统一无缓存错误响应
+  lib/validation/           长度、格式、数字范围、允许值和敏感词接口
   mocks/                    前端假数据
   types/                    后续生成数据库类型的位置
 docs/                       中文交接文档
@@ -39,6 +43,14 @@ tests/                      前端业务与本机数据库测试
 
 认证数据流：登录或注册页面 → Supabase Auth → Cookie Session → Next.js Proxy。
 业务数据流：页面 → client → API Route Handler → service → Supabase。
+
+Week 9 账号状态保护流：受保护页面或业务 API → `requireActiveUser()` → 校验 Cookie Session
+→ 使用 server-only Admin client 查询最新 Auth 用户状态 → 活跃账号继续，禁用账号返回 403，
+状态无法确认时返回 503。管理员恢复账号后，后续请求可以重新通过。该守卫还被
+`requireAdmin()` 复用，因此禁用的管理员也不能继续调用管理 API。
+
+该应用层守卫不能改变已经签发的 Supabase JWT；数据库同事仍应在 RLS/数据库层决定是否
+增加禁用状态检查，以覆盖绕过 Next.js、直接访问 Data API 的情况。
 
 BE-02 数据流：邮箱验证码验证成功 → `GET /api/account/initialization` → 使用当前会话读取本人的 `household_profiles` 和 `account_roles` → 确认普通角色及两个隐私开关默认关闭 → 进入 Overview。验证失败时不在应用代码中越权补建数据，由数据库维护者检查 Auth trigger 和 migration。
 
@@ -51,6 +63,10 @@ Supabase Admin client → Auth 用户及家庭资料。管理员创建的普通�
 可以直接登录；更新严格限定为邮箱、家庭名称、家庭人数和启用状态；删除采用不可恢复的
 Auth 硬删除，并由现有外键 cascade 清理关联资料。该管理服务不提供密码、角色或原始用量
 数据的访问接口。
+
+Week 9 BE-05 共用校验层放在 `src/lib/validation/`，不绑定具体功能。文本长度与格式、有限
+数字范围/整数、字符串允许值已经实现；敏感词匹配器与空列表已经预留，等待负责人提供经
+确认的词库。功能负责人负责在各自 DTO/service 中接入，不在共用工具中猜测业务字段规则。
 
 | 项目层                           | .NET 对应概念     | 职责                         |
 | -------------------------------- | ----------------- | ---------------------------- |

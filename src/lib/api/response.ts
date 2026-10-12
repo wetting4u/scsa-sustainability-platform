@@ -1,0 +1,22 @@
+export const noStoreHeaders = {
+  "Cache-Control": "no-store",
+};
+
+export function apiError(
+  status: number,
+  code: string,
+  message: string,
+): Response {
+  return Response.json(
+    {
+      error: {
+        code,
+        message,
+      },
+    },
+    {
+      status,
+      headers: noStoreHeaders,
+    },
+  );
+}

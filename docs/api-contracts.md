@@ -1,5 +1,37 @@
 # API 接口约定
 
+## Week 9：账号状态与共用错误响应
+
+所有需要登录的 Next.js 页面和业务 API 在继续处理前调用共用的
+`requireActiveUser()`。该检查不信任浏览器传入的账号状态，而是使用当前 Cookie Session
+取得用户，再由仅服务端使用的 Supabase Admin client 查询最新 `banned_until`。
+
+- 未登录或账号已不存在：HTTP 401 `UNAUTHENTICATED`。
+- 账号已被管理员禁用：HTTP 403 `ACCOUNT_DISABLED`。
+- 无法查询最新账号状态（包括未配置 `SUPABASE_SECRET_KEY`）：HTTP 503
+  `ACCOUNT_STATUS_UNAVAILABLE`，请求采用 fail-closed，不继续读取或修改业务数据。
+- 已登录但不是管理员：管理 API 返回 HTTP 403 `FORBIDDEN`。
+- Admin client 无法建立：管理功能返回 HTTP 503 `ADMIN_SERVICE_UNAVAILABLE`。
+
+错误格式统一为：
+
+```json
+{
+  "error": {
+    "code": "ACCOUNT_DISABLED",
+    "message": "This account has been disabled by an administrator."
+  }
+}
+```
+
+上述响应均使用 `Cache-Control: no-store`。前端/API 对接同事应按 `error.code` 判断状态，
+不要依赖英文文案，也不要把 Supabase 原始错误直接显示给用户。本次未新增需要前端调用的
+账号状态 API；检查已内置在现有服务入口。
+
+重要边界：这层保护覆盖本项目的 Next.js 页面与 API。若客户端绕过本项目接口，直接携带
+禁用前签发且尚未过期的 JWT 调用 Supabase Data API，仍需数据库同事在 RLS/数据库层增加
+账号启用状态约束，才能立即拒绝该类请求。
+
 ## BE-02 注册后资料初始化验证
 
 `GET /api/account/initialization` 使用当前 Supabase 登录会话检查新账号初始化结果，不接受浏览器提供的 `user_id`。
@@ -54,6 +86,25 @@
 - 已验证管理员：将请求级用户会话客户端和可信 `userId` 交给后续服务。
 
 管理员页面布局也使用同一工具：未登录跳转 `/sign-in`，非管理员或角色检查失败跳转 `/overview`。页面隐藏或 Proxy 不能替代各个管理 API 的服务端检查。
+
+Week 9 审计确认：当前 `/api/admin/users*` 与 `/api/admin/challenges*` 的每个入口都在读取
+请求体或执行高权限操作前调用 `requireAdmin()`；角色只取自服务端查询，不接受客户端提供
+的 `role`。`SUPABASE_SECRET_KEY` 只由 server-only 模块读取，响应 DTO 不包含密码、密码哈希
+或 secret。
+
+## Week 9 BE-05 共用输入校验工具
+
+`src/lib/validation/index.ts` 提供独立、可复用的服务端校验工具：
+
+- `validateText()`：去除首尾空白，检查最短/最长长度、正则格式及敏感词匹配器。
+- `validateNumberRange()`：检查 number、有限值、整数要求和最小/最大值。
+- `validateAllowedValue()`：只接受显式 allow-list 中的字符串。
+- `findSensitiveWord()`：敏感词匹配接口。
+
+生产敏感词列表位于 `src/lib/validation/sensitive-words.ts`，目前按任务决定保持空数组。
+收到内容规则负责人确认的词库后，只需填写 `SENSITIVE_WORDS`，或由具体功能通过
+`sensitiveWords`/`sensitiveWordMatcher` 注入。各功能负责人仍须在自己的 DTO/service 中调用
+这些工具；工具本身不会自动拦截尚未接入的字段，也不会改写现有密码规则。
 
 ## BE-05 Admin Users API
 

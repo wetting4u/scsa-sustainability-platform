@@ -278,3 +278,73 @@
 
 - `src/features/privacy/settings.tsx`：修改密码功能改为复用 BE-01 的 `isStrongPassword()`，现在必须包含至少 8 个字符、大写字母、小写字母、数字和特殊字符；同步更新错误提示与页面说明。
 - `backend/edit.md`：记录本次修改密码规则调整。
+
+## 2026-10-12：完成 Week 9 BE01、BE04、BE05 工具及 BE06 非 API 对接部分
+
+### 已确认的范围与决定
+
+- 完成 Week 9 BE01 的禁用/恢复应用层保护：禁用账号不但不能再次登录，也不能继续使用
+  已有浏览器会话访问本项目受保护页面和 Next.js API；恢复后重新检查状态即可继续使用。
+- 完成 Week 9 BE04 安全审计与共用授权：所有现有 `/api/admin/*` 服务入口继续在读取请求体
+  或执行操作前调用 `requireAdmin()`，角色只来自服务端查询，secret 只在服务端使用，响应
+  不返回密码、密码哈希或 secret。
+- BE05 本次只实现共用的长度、格式、数字范围和允许值工具；敏感词匹配接口已经预留，生产
+  词库保持为空，等待其他同事提供经确认的词库及匹配规则后再填写。
+- BE06 完成统一错误约定、自动化回归和交接说明；按要求不替其他同事完成 API/UI 对接。
+- BE03 按用户决定暂时跳过，本次没有实现或修改其相关数据库结构。
+- 没有修改数据库组维护的 migration。应用层可以立即保护本项目页面和 API；禁用前签发的
+  JWT 若被用于绕过 Next.js 直接调用 Supabase Data API，仍需数据库同事提供 RLS/数据库层
+  的账号启用状态约束。
+
+### 新增文件
+
+- `src/lib/api/response.ts`：提供统一 `{ error: { code, message } }` 与
+  `Cache-Control: no-store` 响应工具。
+- `src/features/auth/authorization.ts`：提供账号未登录、已禁用和状态不可查询的纯业务判定。
+- `src/features/auth/server/authorization.ts`：提供 server-only `requireActiveUser()`，每次受
+  保护请求查询当前 Supabase Auth 用户状态并采用 fail-closed 策略。
+- `src/lib/validation/index.ts`：提供文本长度/格式、有限数字范围/整数及字符串允许值校验。
+- `src/lib/validation/sensitive-words.ts`：提供敏感词匹配接口与等待填写的空生产词库。
+- `tests/account-access.test.ts`：覆盖未登录、状态查询失败、禁用、恢复/过期和登录禁用提示。
+- `tests/shared-validation.test.ts`：覆盖文本长度/格式、数字范围、允许值和敏感词注入接口。
+- `docs/backend/W9-BE01-BE06-handoff.md`：记录完成范围、同事对接边界及手动回归清单。
+
+### 修改文件
+
+- `src/lib/supabase/admin.ts`：增加安全建立 Admin client 的结果接口，避免缺少 secret 时抛出
+  未处理运行时错误。
+- `src/features/admin/server/authorization.ts`：管理员授权先复用 `requireActiveUser()`，再查询
+  服务端角色；禁用管理员也不能继续使用管理 API。
+- `src/features/admin-users/server/service.ts`：复用统一错误响应和安全 Admin client 工厂；保留
+  现有禁用 `ban_duration` 与恢复 `none` 行为。
+- `src/features/challenges/server/admin-service.ts`：复用统一无缓存错误响应。
+- `src/features/auth/domain.ts`：增加 `user_banned` 的稳定、安全登录错误文案。
+- `src/app/(household)/layout.tsx`：受保护区域改用最新账号状态守卫。
+- `src/features/account/server/initialization.ts`：初始化验证改用最新账号状态守卫。
+- `src/features/privacy/server/service.ts`：Profile 服务改用最新账号状态守卫。
+- `src/features/records/server/service.ts`：Records 所有操作改用最新账号状态守卫和可信 user ID。
+- `src/features/goals/server/service.ts`：Goals 所有操作改用最新账号状态守卫和可信 user ID。
+- `src/features/challenges/server/service.ts`：Challenges 查询、加入及退出操作改用最新账号状态
+  守卫和可信 user ID。
+- `src/features/dashboard/overview.tsx`：Overview 不再从浏览器直接查询 Supabase 数据表，改为
+  调用现有 Records API，使账号状态守卫可以覆盖该页面的数据读取。
+- `package.json`：将账号状态与共用校验工具测试加入 `pnpm test`。
+- `docs/api-contracts.md`：记录账号状态错误、BE04 审计结论、BE05 工具接口和 API 对接边界。
+- `docs/architecture.md`：补充账号状态守卫、共用响应与校验层的数据流和数据库边界。
+- `docs/backend/edit.md`：记录本次所有文件新增、修改、跳过项和同事依赖。
+
+### 删除文件
+
+- 无。
+
+### 验证记录
+
+- Prettier 格式化完成，`git diff --check` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm test` 通过，共 35 项；新增 10 项覆盖账号状态和共用校验工具。
+- `pnpm test:db` 通过，共 7 项；本次没有修改数据库 migration。
+- `pnpm exec next build --webpack` 通过，受保护页面及现有 API 均成功构建。
+- 真实 Supabase 的管理员禁用、已有会话拦截和恢复流程仍需使用两个实际账号按交接清单完成
+  手动验收；自动化测试不使用或记录真实 secret。
+- 项目级 `pnpm format:check` 仍报告 21 个本次未修改的既有文件格式问题；本次新增和修改的
+  文件已单独通过 Prettier，没有为清理旧格式而扩大改动范围。
