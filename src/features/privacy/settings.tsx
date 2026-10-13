@@ -28,6 +28,10 @@ export function Settings() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordMessage, setPasswordMessage] = useState("");
   const [profileUpdated, setProfileUpdated] = useState(false);
+  const [resettingProgress, setResettingProgress] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+  const [freezingAccount, setFreezingAccount] = useState(false);
+  const [freezeError, setFreezeError] = useState("");
   
 
   useEffect(() => {
@@ -212,6 +216,96 @@ export function Settings() {
     }
 
     setChangingPassword(false);
+    }
+      async function handleResetProgress() {
+      const confirmed = window.confirm(
+        "Reset all of your progress?\n\n" +
+          "This will permanently delete your usage records, goals, challenge participation, and badge progress. " +
+          "Your account, household profile, Community Area, and privacy settings will be kept.",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      setResettingProgress(true);
+      setResetMessage("");
+
+      try {
+        const response = await fetch("/api/account/reset", {
+          method: "POST",
+          cache: "no-store",
+        });
+
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              data?: { reset?: boolean };
+              error?: { message?: string };
+            }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.error?.message ?? "Unable to reset your account progress.",
+          );
+        }
+
+        setResetMessage("Your account progress has been reset successfully.");
+        router.refresh();
+      } catch (resetError) {
+        setResetMessage(
+          resetError instanceof Error
+            ? resetError.message
+            : "Unable to reset your account progress.",
+        );
+      } finally {
+        setResettingProgress(false);
+      }
+    }
+    async function handleFreezeAccount() {
+    const confirmed = window.confirm(
+      "Freeze your account?\n\n" +
+        "You will temporarily lose access to household features. " +
+        "Your account and saved information will be kept, and you can unfreeze the account later.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setFreezingAccount(true);
+    setFreezeError("");
+
+    try {
+      const response = await fetch("/api/account/freeze", {
+        method: "POST",
+        cache: "no-store",
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            data?: { frozen?: boolean };
+            error?: { message?: string };
+          }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error?.message ?? "Unable to freeze your account.",
+        );
+      }
+
+      router.replace("/account-frozen");
+      router.refresh();
+    } catch (freezeAccountError) {
+      setFreezeError(
+        freezeAccountError instanceof Error
+          ? freezeAccountError.message
+          : "Unable to freeze your account.",
+      );
+    } finally {
+      setFreezingAccount(false);
+    }
   }
   return (
     <>
@@ -294,6 +388,61 @@ export function Settings() {
                   : "Save profile"}
             </button>
           </form>
+        </section>
+        <section className="panel">
+          <h2>Account controls</h2>
+
+          <p>
+            Manage your saved progress and account access.
+          </p>
+
+          <div style={{ marginTop: "20px" }}>
+            <strong>Reset progress</strong>
+
+            <p className="caption">
+              Permanently delete your usage records, goals, challenge participation,
+              and badge progress. Your account, household profile, Community Area,
+              and privacy preferences will be kept.
+            </p>
+
+            <button
+              type="button"
+              className="button secondary"
+              disabled={resettingProgress || freezingAccount}
+              onClick={() => void handleResetProgress()}
+            >
+              {resettingProgress ? "Resetting..." : "Reset progress"}
+            </button>
+
+            {resetMessage && (
+              <p role="status" style={{ marginTop: "12px" }}>
+                {resetMessage}
+              </p>
+            )}
+          </div>
+          <div style={{ marginTop: "28px" }}>
+          <strong>Freeze account</strong>
+
+          <p className="caption">
+            Temporarily pause access to household features without deleting your
+            account or saved information. You can unfreeze the account later.
+          </p>
+
+          <button
+            type="button"
+            className="button secondary"
+            disabled={freezingAccount || resettingProgress}
+            onClick={() => void handleFreezeAccount()}
+          >
+            {freezingAccount ? "Freezing..." : "Freeze account"}
+          </button>
+
+          {freezeError && (
+            <p className="error" role="alert">
+              {freezeError}
+            </p>
+          )}
+        </div>
         </section>
         <section className="panel">
           <h2>Change password</h2>

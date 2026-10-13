@@ -14,6 +14,21 @@ export default async function HouseholdLayout({
   const authorization = await requireActiveUser();
 
   if (!authorization.ok) {
+    const payload = (await authorization.response
+      .clone()
+      .json()
+      .catch(() => null)) as
+      | {
+          error?: {
+            code?: string;
+          };
+        }
+      | null;
+
+    if (payload?.error?.code === "ACCOUNT_FROZEN") {
+      redirect("/account-frozen");
+    }
+
     redirect("/sign-in");
   }
 
