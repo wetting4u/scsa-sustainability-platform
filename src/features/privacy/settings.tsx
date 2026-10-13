@@ -18,13 +18,17 @@ export function Settings() {
   const [communityAreas, setCommunityAreas] = useState<CommunityArea[]>([]);
   const [communityAreasLoading, setCommunityAreasLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] =
+  useState<"success" | "error">("success");
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordMessage, setPasswordMessage] = useState("");
   const [profileUpdated, setProfileUpdated] = useState(false);
+  
 
   useEffect(() => {
     let active = true;
@@ -42,11 +46,16 @@ export function Settings() {
         }
       } catch (profileError) {
         if (active) {
+          setMessageType("error");
           setMessage(
             profileError instanceof Error
               ? profileError.message
               : "Unable to load your household profile.",
           );
+        }
+      } finally {
+        if (active) {
+          setProfileLoading(false);
         }
       }
     }
@@ -66,6 +75,7 @@ export function Settings() {
 
     if (error) {
       console.error(error);
+      setMessageType("error");
       setMessage("Unable to load Community Areas.");
       setCommunityAreasLoading(false);
       return;
@@ -97,10 +107,12 @@ export function Settings() {
     ).trim();
 
     if (!value) {
+      setMessageType("error");
       setMessage("Please enter a household name.");
       return;
     }
     if (!Number.isInteger(size) || size < 1 || size > 20) {
+      setMessageType("error");
       setMessage("Household size must be a whole number between 1 and 20.");
       return;
     }
@@ -124,6 +136,7 @@ export function Settings() {
       setProfileUpdated(true);
       router.refresh();
     } catch (profileError) {
+      setMessageType("error");
       setMessage(
         profileError instanceof Error
           ? profileError.message
@@ -145,14 +158,17 @@ export function Settings() {
 
       setAnalytics(data.shareAnalytics);
       setLeaderboard(data.displayLeaderboard);
+      setMessageType("success");
+      setMessageType("success");
       setMessage("Privacy preference updated.");
     } catch (profileError) {
-      setMessage(
-        profileError instanceof Error
-          ? profileError.message
-          : "Unable to update your privacy preference.",
-      );
-    } finally {
+    setMessageType("error");
+    setMessage(
+      profileError instanceof Error
+        ? profileError.message
+        : "Unable to update your privacy preference.",
+    );
+  } finally {
       setSavingPrivacy(false);
     }
   }
@@ -221,9 +237,11 @@ export function Settings() {
                 name="household"
                 defaultValue={household}
                 maxLength={60}
+                disabled={profileLoading || saving}
                 required
               />
             </label>
+
             <label>
               Household size
               <input
@@ -234,16 +252,18 @@ export function Settings() {
                 max={20}
                 step={1}
                 defaultValue={householdSize}
+                disabled={profileLoading || saving}
                 required
               />
             </label>
+            
             <label>
               Community Area
               <select
                 name="communityAreaId"
                 value={communityAreaId}
                 onChange={(event) => setCommunityAreaId(event.target.value)}
-                disabled={communityAreasLoading || saving}
+                disabled={communityAreasLoading || profileLoading || saving}
               >
                 <option value="">
                   {communityAreasLoading
@@ -262,8 +282,16 @@ export function Settings() {
               Choose the Community Area that best matches your household.
               No street address or postcode is required.
             </p>
-            <button className="button primary" type="submit" disabled={saving}>
-              {saving ? "Saving..." : "Save profile"}
+            <button
+              className="button primary"
+              type="submit"
+              disabled={saving || profileLoading}
+            >
+              {profileLoading
+                ? "Loading profile..."
+                : saving
+                  ? "Saving..."
+                  : "Save profile"}
             </button>
           </form>
         </section>
@@ -376,9 +404,14 @@ export function Settings() {
           </div>
         </section>
       </div>
-      <p role="status" className={message ? "success" : ""}>
-        {message}
-      </p>
+      {message && (
+        <p
+          role={messageType === "error" ? "alert" : "status"}
+          className={messageType === "error" ? "error" : "success"}
+        >
+          {message}
+        </p>
+      )}
       {profileUpdated && (
         <div
           role="dialog"

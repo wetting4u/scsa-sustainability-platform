@@ -359,7 +359,7 @@ export default function AdminChallengesPage() {
 
       <div className="section-title">
         <h2>Current challenges</h2>
-        <span>
+        <span role="status">
           {loading ? "Loading..." : `${challenges.length} challenges`}
         </span>
       </div>
