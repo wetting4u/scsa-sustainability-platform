@@ -2,7 +2,10 @@ import "server-only";
 
 import type { User } from "@supabase/supabase-js";
 
-import { getAccountAccessFailure } from "@/features/auth/authorization";
+import {
+  getAccountAccessFailure,
+  isAccountFrozen,
+} from "@/features/auth/authorization";
 import { apiError } from "@/lib/api/response";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -21,13 +24,17 @@ export type ActiveUserAuthorization =
       response: Response;
     };
 
+export type AuthenticatedAccountAuthorization = ActiveUserAuthorization;
+
 function accessDenied(
   failure: NonNullable<ReturnType<typeof getAccountAccessFailure>>,
 ) {
   return apiError(failure.status, failure.code, failure.message);
 }
 
-export async function requireActiveUser(): Promise<ActiveUserAuthorization> {
+async function authorizeAccount(
+  allowFrozen: boolean,
+): Promise<ActiveUserAuthorization> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -65,6 +72,7 @@ export async function requireActiveUser(): Promise<ActiveUserAuthorization> {
 
   const failure = getAccountAccessFailure({
     authenticated: Boolean(data.user),
+    accountFrozen: !allowFrozen && isAccountFrozen(data.user?.app_metadata),
     bannedUntil: data.user?.banned_until,
     statusCheckFailed: Boolean(statusError && statusError.status !== 404),
   });
@@ -79,7 +87,15 @@ export async function requireActiveUser(): Promise<ActiveUserAuthorization> {
   return {
     ok: true,
     supabase,
-    user,
+    user: data.user ?? user,
     userId: user.id,
   };
+}
+
+export function requireActiveUser(): Promise<ActiveUserAuthorization> {
+  return authorizeAccount(false);
+}
+
+export function requireAuthenticatedAccount(): Promise<AuthenticatedAccountAuthorization> {
+  return authorizeAccount(true);
 }
