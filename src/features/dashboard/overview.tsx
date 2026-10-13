@@ -117,11 +117,37 @@ useEffect(() => {
     void loadBadges();
   }, []);
 
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const lastDayOfMonth = new Date(
+    currentYear,
+    currentMonth + 1,
+    0,
+  ).getDate();
+
+  const monthLabel = now.toLocaleString("en-AU", {
+    month: "short",
+  });
+
+  function monthDate(day: number) {
+    return `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(
+      day,
+    ).padStart(2, "0")}`;
+  }
+
+  const currentMonthStart = monthDate(1);
+  const currentMonthEnd = monthDate(lastDayOfMonth);
+
   const weeks = [
-    ["01–07 Sep", "2026-09-01", "2026-09-07"],
-    ["08–14 Sep", "2026-09-08", "2026-09-14"],
-    ["15–21 Sep", "2026-09-15", "2026-09-21"],
-    ["22–30 Sep", "2026-09-22", "2026-09-30"],
+    ["01–07 " + monthLabel, monthDate(1), monthDate(7)],
+    ["08–14 " + monthLabel, monthDate(8), monthDate(14)],
+    ["15–21 " + monthLabel, monthDate(15), monthDate(21)],
+    [
+      `22–${String(lastDayOfMonth).padStart(2, "0")} ${monthLabel}`,
+      monthDate(22),
+      monthDate(lastDayOfMonth),
+    ],
   ];
   const values = weeks.map((w) => totalFor(records, resource, w[1], w[2]));
   const hasData = weeks.map((w) =>
@@ -216,24 +242,29 @@ useEffect(() => {
             </div>
             <div className="stat-value">
               {records.some(
-                (r) =>
-                  r.resource === key &&
-                  r.start >= "2026-09-01" &&
-                  r.end <= "2026-09-30",
-              )
-                ? totalFor(records, key).toLocaleString()
-                : "—"}{" "}
+              (r) =>
+                r.resource === key &&
+                r.start >= currentMonthStart &&
+                r.end <= currentMonthEnd,
+            )
+              ? totalFor(
+                  records,
+                  key,
+                  currentMonthStart,
+                  currentMonthEnd,
+                ).toLocaleString()
+              : "—"}{" "}
               <small>{resources[key].unit}</small>
             </div>
             <p>Recorded usage this month</p>
             <div className="stat-foot">
               {
                 records.filter(
-                  (r) =>
-                    r.resource === key &&
-                    r.start >= "2026-09-01" &&
-                    r.end <= "2026-09-30",
-                ).length
+                (r) =>
+                  r.resource === key &&
+                  r.start >= currentMonthStart &&
+                  r.end <= currentMonthEnd,
+              ).length
               }{" "}
               entries <span>Manual household records</span>
             </div>
