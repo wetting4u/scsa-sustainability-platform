@@ -348,3 +348,98 @@
   手动验收；自动化测试不使用或记录真实 secret。
 - 项目级 `pnpm format:check` 仍报告 21 个本次未修改的既有文件格式问题；本次新增和修改的
   文件已单独通过 Prettier，没有为清理旧格式而扩大改动范围。
+
+## 2026-10-13：完成 Week 9 BE02 Reset 与 BE03 账号冻结/解冻
+
+### 已确认的范围与决定
+
+- 根据更新后的 API List，Reset 使用现有 `public.clear_my_account_data()` RPC，只清理当前
+  登录用户的用量记录、目标、挑战参与及徽章进度；保留 Auth 账号、家庭资料、角色、社区
+  身份与隐私设置。接口不接受客户端提供的用户 ID。
+- BE03 不再删除账号，改为用户主动冻结与解冻。冻结状态写入 Supabase Auth 服务端
+  `app_metadata`，账号身份和全部资料继续保留。
+- 冻结账号使用正确凭据登录时只显示冻结提示和 `Unfreeze account` 按钮，不自动跳转。
+  用户必须主动点击进入 `/unfreeze-account`，并在页面中再次点击才执行解冻。
+- 解冻成功后清除本地会话并显示手动返回登录页的链接，不自动跳转。管理员禁用的账号不能
+  通过自助解冻绕过管理员限制。
+- 未修改数据库组的 migration；Reset RPC 来自团队提供的共享 Supabase API。自动化测试没有
+  调用真实 RPC，以免清除真实账号数据。
+
+### 新增文件
+
+- `src/features/account/lifecycle.ts`：纯函数维护冻结 metadata，同时保留其他 Auth metadata。
+- `src/features/account/server/lifecycle.ts`：实现当前用户业务进度 Reset、冻结与解冻服务。
+- `src/features/account/client.ts`：提供 Reset、冻结与解冻的浏览器端 API 适配层。
+- `src/app/api/account/reset/route.ts`：提供 `POST /api/account/reset`。
+- `src/app/api/account/freeze/route.ts`：提供 `POST/DELETE /api/account/freeze`。
+- `src/app/(public)/unfreeze-account/page.tsx`：提供必须由用户主动操作的解冻页面。
+- `tests/account-lifecycle.test.ts`：覆盖 metadata 保留、冻结访问拦截和管理员禁用优先级。
+
+### 修改文件
+
+- `src/features/auth/authorization.ts`：增加冻结状态识别及 403 `ACCOUNT_FROZEN` 错误。
+- `src/features/auth/server/authorization.ts`：受保护功能拦截冻结账号；新增只供解冻使用、仍会
+  拒绝管理员禁用账号的 `requireAuthenticatedAccount()`。
+- `src/app/(public)/sign-in/page.tsx`：登录时检测冻结状态，留在当前页面显示提示和手动解冻
+  按钮，不自动跳转解冻页。
+- `src/features/privacy/settings.tsx`：增加业务进度 Reset 和冻结账号操作及明确确认提示。
+- `package.json`：把账号生命周期测试加入 `pnpm test`。
+- `docs/api-contracts.md`：记录 Reset、冻结/解冻路由、错误码、数据边界和非自动跳转要求。
+- `docs/architecture.md`：记录账号生命周期目录、守卫及数据流。
+- `docs/backend/W9-BE01-BE06-handoff.md`：更新 BE02、BE03 完成状态、对接要求和手动回归步骤。
+- `README.md`：补充 Settings 账号生命周期功能与登录/解冻流程。
+- `docs/backend/edit.md`：记录本次全部文件新增、修改、边界与验证结果。
+
+### 删除文件
+
+- 无。
+
+### 验证记录
+
+- Prettier 已格式化本次代码文件，`git diff --check` 通过。
+- `pnpm typecheck` 通过。
+- `pnpm test` 通过，共 39 项；新增 4 项账号生命周期测试。
+- `pnpm test:db` 通过，共 7 项；本次未修改数据库 migration。
+- `pnpm exec next build --webpack` 通过，构建结果包含 `/api/account/reset`、
+  `/api/account/freeze` 和 `/unfreeze-account`。
+- 真实 Reset、冻结及解冻仍需使用专门的测试账号手动验收；不要用需要保留业务进度的账号
+  测试 Reset。
+
+## 2026-10-13：撤回前端改动，限定为后端交付
+
+用户明确当前工作只包含 backend。上一节的前端实现已撤回，以下记录覆盖上一节的最终状态，
+历史操作记录保留用于审计。
+
+### 恢复的文件
+
+- `src/app/(public)/sign-in/page.tsx`：恢复为本轮修改前的 HEAD 版本，撤回冻结提示和解冻按钮。
+- `src/features/privacy/settings.tsx`：恢复为本轮修改前的 HEAD 版本，撤回 Reset/Freeze UI 与处理函数。
+- `README.md`：恢复为本轮修改前的 HEAD 版本，撤回声称页面已完成的描述。
+
+### 删除的本轮新增文件
+
+- `src/app/(public)/unfreeze-account/page.tsx`：撤回新增解冻页面，可从本日志之前的操作记录追溯。
+- `src/features/account/client.ts`：撤回新增浏览器端 API 适配层。
+
+### 修改文件
+
+- `docs/api-contracts.md`：保留后端接口，补充成功响应和错误码，明确前端待对接流程。
+- `docs/architecture.md`：将账号生命周期说明限定为后端数据流与前端同事职责。
+- `docs/backend/W9-BE01-BE06-handoff.md`：纠正 UI 已完成的状态，列出需交给前端的三个接口。
+- `docs/backend/edit.md`：记录全部恢复、删除及范围调整。
+
+### 保留的后端与 Supabase 边界
+
+- 保留 API Route Handler、服务端生命周期服务、冻结 metadata 业务规则、权限守卫及后端测试。
+- 本轮没有修改 `.env.local`、`src/lib/supabase/*`、数据库 migration 或 Supabase 云端配置/数据，
+  因此这些部分没有需要撤回的改动。后端调用既有 Supabase Auth API 与 Reset RPC 的代码属于
+  后端集成实现，并继续保留。
+- 前端页面、按钮及 Cookie Session 客户端处理由前端同事完成，Supabase RPC/RLS/配置由对应
+  同事维护。
+
+### 验证
+
+- 39 项业务测试通过，恢复后的生产构建通过；构建已不包含解冻页面。
+- 初次类型检查发现旧 `.next` 缓存引用已删除页面，重新构建后已刷新缓存。
+- 构建自动改写的 `next-env.d.ts` 已恢复原版本，无最终源码差异。
+- 前端文件、README、Supabase 文件及数据库 migration 与 HEAD 无差异。

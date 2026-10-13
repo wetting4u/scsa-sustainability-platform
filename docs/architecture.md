@@ -27,7 +27,7 @@ src/
   features/auth/domain.ts   密码规则和认证错误映射
   features/auth/authorization.ts 账号启用状态的纯业务判定
   features/auth/server/authorization.ts 共用 requireActiveUser 服务端守卫
-  features/account/         注册后资料初始化验证
+  features/account/         初始化验证、业务进度 reset、账号冻结与解冻
   features/admin/           共用管理员授权规则与服务端 requireAdmin
   features/admin-users/     BE-05 用户管理 DTO、客户端和服务端逻辑
   features/privacy/         Profile API、客户端适配与 Settings 页面
@@ -49,8 +49,17 @@ Week 9 账号状态保护流：受保护页面或业务 API → `requireActiveUs
 状态无法确认时返回 503。管理员恢复账号后，后续请求可以重新通过。该守卫还被
 `requireAdmin()` 复用，因此禁用的管理员也不能继续调用管理 API。
 
+后端冻结流：`POST /api/account/freeze` → 服务端 Admin client 写入 Auth
+`app_metadata.account_frozen`。前端同事负责确认、退出会话、登录冻结提示及手动进入解冻页面，
+用户主动确认后调用 `DELETE /api/account/freeze`。`requireActiveUser()` 拦截冻结账号的页面/API，专用的
+`requireAuthenticatedAccount()` 只为解冻保留通道，并仍拒绝管理员禁用账号。
+
+后端业务进度 reset 流：`POST /api/account/reset` → 当前用户会话调用 API
+List 提供的 `clear_my_account_data()` RPC。RPC 清理用量、目标、挑战参与和徽章进度，但保留
+Auth 身份、家庭资料、角色、社区身份与隐私设置；客户端不能指定要清理的用户 ID。
+
 该应用层守卫不能改变已经签发的 Supabase JWT；数据库同事仍应在 RLS/数据库层决定是否
-增加禁用状态检查，以覆盖绕过 Next.js、直接访问 Data API 的情况。
+增加禁用及自助冻结状态检查，以覆盖绕过 Next.js、直接访问 Data API 的情况。
 
 BE-02 数据流：邮箱验证码验证成功 → `GET /api/account/initialization` → 使用当前会话读取本人的 `household_profiles` 和 `account_roles` → 确认普通角色及两个隐私开关默认关闭 → 进入 Overview。验证失败时不在应用代码中越权补建数据，由数据库维护者检查 Auth trigger 和 migration。
 

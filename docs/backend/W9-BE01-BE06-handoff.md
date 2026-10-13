@@ -12,7 +12,10 @@
   词库按决定保持为空，等待其他同事提供经确认的列表。
 - **BE06（不含 API/UI 对接）**：统一账号状态错误约定，增加自动化回归测试和下方手动
   回归清单。没有新建要求其他前端调用的 API。
-- **BE03**：按决定暂时跳过，本次没有实施。
+- **BE02 Reset**：根据更新后的 API List，接入 `clear_my_account_data()` RPC；只清除当前用户
+  的业务进度，保留 Auth 身份、Profile、角色、社区身份和隐私设置。
+- **BE03**：原删除方案改为冻结/解冻。冻结保留全部身份与数据，受保护功能返回
+  `ACCOUNT_FROZEN`；登录提示、解冻按钮及页面交由前端同事实现。
 
 ## 需要其他同事完成
 
@@ -23,11 +26,17 @@
 
 - 401 `UNAUTHENTICATED`
 - 403 `ACCOUNT_DISABLED`
+- 403 `ACCOUNT_FROZEN`
 - 403 `FORBIDDEN`
 - 503 `ACCOUNT_STATUS_UNAVAILABLE`
 - 503 `ADMIN_SERVICE_UNAVAILABLE`
 
-本次没有要求前端调用新的账号状态 API；这些错误来自现有受保护 API。
+后端提供 `POST /api/account/reset`、`POST /api/account/freeze`、
+`DELETE /api/account/freeze`，请求体为空，使用当前 Cookie Session。
+完整成功响应、错误码与数据保留范围见 `docs/api-contracts.md`。
+前端同事负责 Reset/Freeze 按钮与确认、冻结后的退出会话、登录时冻结提示及解冻页面。
+冻结账号密码认证返回的 `app_metadata.account_frozen` 为 true 时，只显示提示和解冻按钮，
+必须由用户点击后进入解冻页，不得自动跳转。后端会拦截冻结会话的受保护功能。
 
 ### 数据库同事
 
@@ -52,6 +61,14 @@
 7. 普通用户调用任一 `/api/admin/*` 返回 403；禁用的管理员也不能继续调用管理 API。
 8. 暂时移除本地 `SUPABASE_SECRET_KEY` 后，受保护 API 返回安全的 503，不出现运行时堆栈；
    验证结束后恢复该环境变量。
+以下流程需前端完成对接后联合验收：
+
+9. 在 Settings 点击 Reset，取消确认时不发请求；确认后只清除用量、目标、挑战参与及徽章
+   进度，Profile、角色、社区身份、隐私设置及登录仍保留。
+10. 在 Settings 点击 Freeze 并确认后退出登录；随后使用正确凭据登录，只显示冻结提示和
+    `Unfreeze account` 按钮，浏览器不会自行进入解冻页。
+11. 手动点击解冻按钮进入前端制作的解冻页面；未确认前账号仍冻结，确认解冻后页面显示
+    成功信息和返回登录页链接，不自动跳转。
 
 ## 当前配置要求
 

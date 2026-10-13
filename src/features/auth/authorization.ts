@@ -1,8 +1,20 @@
 export type AccountAccessFailure = {
   status: 401 | 403 | 503;
-  code: "UNAUTHENTICATED" | "ACCOUNT_DISABLED" | "ACCOUNT_STATUS_UNAVAILABLE";
+  code:
+    | "UNAUTHENTICATED"
+    | "ACCOUNT_DISABLED"
+    | "ACCOUNT_FROZEN"
+    | "ACCOUNT_STATUS_UNAVAILABLE";
   message: string;
 };
+
+export function isAccountFrozen(appMetadata: unknown): boolean {
+  if (!appMetadata || typeof appMetadata !== "object") {
+    return false;
+  }
+
+  return (appMetadata as Record<string, unknown>).account_frozen === true;
+}
 
 export function isAccountBanned(
   bannedUntil: string | null | undefined,
@@ -19,6 +31,7 @@ export function isAccountBanned(
 
 export function getAccountAccessFailure(input: {
   authenticated: boolean;
+  accountFrozen?: boolean;
   bannedUntil?: string | null;
   providerRejectedAsBanned?: boolean;
   statusCheckFailed?: boolean;
@@ -53,6 +66,14 @@ export function getAccountAccessFailure(input: {
       status: 403,
       code: "ACCOUNT_DISABLED",
       message: "This account has been disabled by an administrator.",
+    };
+  }
+
+  if (input.accountFrozen) {
+    return {
+      status: 403,
+      code: "ACCOUNT_FROZEN",
+      message: "This account is frozen. Unfreeze it before continuing.",
     };
   }
 

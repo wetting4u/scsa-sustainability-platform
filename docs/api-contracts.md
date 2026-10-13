@@ -8,6 +8,7 @@
 
 - 未登录或账号已不存在：HTTP 401 `UNAUTHENTICATED`。
 - 账号已被管理员禁用：HTTP 403 `ACCOUNT_DISABLED`。
+- 用户主动冻结账号：HTTP 403 `ACCOUNT_FROZEN`。
 - 无法查询最新账号状态（包括未配置 `SUPABASE_SECRET_KEY`）：HTTP 503
   `ACCOUNT_STATUS_UNAVAILABLE`，请求采用 fail-closed，不继续读取或修改业务数据。
 - 已登录但不是管理员：管理 API 返回 HTTP 403 `FORBIDDEN`。
@@ -31,6 +32,46 @@
 重要边界：这层保护覆盖本项目的 Next.js 页面与 API。若客户端绕过本项目接口，直接携带
 禁用前签发且尚未过期的 JWT 调用 Supabase Data API，仍需数据库同事在 RLS/数据库层增加
 账号启用状态约束，才能立即拒绝该类请求。
+
+## Week 9 BE-02 Reset 业务进度
+
+`POST /api/account/reset` 使用当前登录会话调用 API List 已提供的
+`public.clear_my_account_data()` RPC。请求体为空，接口不接受 `user_id`，只能清理当前登录
+用户自己的以下业务进度：
+
+- usage records；
+- goals；
+- challenge memberships；
+- badge cycle results；
+- user badges。
+
+账号、登录凭据、`household_profiles`、`account_roles`、社区身份和隐私设置均保留。成功返回
+HTTP 200 `{ "data": { "reset": true } }`；未登录、被管理员禁用或已冻结时沿用统一账号状态
+错误；RPC 失败返回 HTTP 500 `ACCOUNT_RESET_FAILED`。该操作不可恢复，前端同事须在
+发送请求前实现手动确认。
+
+## Week 9 BE-03 冻结与解冻账号
+
+| 方法   | 地址                  | 行为                                               |
+| ------ | --------------------- | -------------------------------------------------- |
+| POST   | `/api/account/freeze` | 用户主动冻结当前账号，保留身份、资料和业务数据     |
+| DELETE | `/api/account/freeze` | 用户主动解冻当前账号，恢复使用现有身份和数据的权限 |
+
+冻结状态保存在 Supabase Auth 的服务端 `app_metadata.account_frozen`，浏览器不能通过 Profile
+接口伪造或修改。`requireActiveUser()` 会阻止冻结账号访问受保护页面和业务 API，并返回 HTTP
+403 `ACCOUNT_FROZEN`。解冻接口使用专门的 `requireAuthenticatedAccount()`：它仍要求有效登录
+会话，并继续拒绝被管理员禁用的账号，但允许已冻结账号执行唯一的解冻操作。
+
+上述三个接口均不需要请求体；冻结和解冻成功分别返回 HTTP 200
+`{ "data": { "frozen": true } }` 与 `{ "data": { "frozen": false } }`。
+更新失败分别返回 HTTP 500 `ACCOUNT_FREEZE_FAILED` 或 `ACCOUNT_UNFREEZE_FAILED`。
+接口只操作当前 Cookie Session 对应的账号，不提供指定其他用户的参数。
+
+前端待对接要求：冻结账号提交正确邮箱和密码后，只显示冻结提示和解冻按钮，不自动
+跳转。Supabase Auth 仍会建立用于解冻的认证会话，前端可读取返回用户的
+`app_metadata.account_frozen` 判断状态；业务 API 则由后端检查最新状态并阻止访问。
+只有用户主动点击按钮才进入前端同事制作的解冻页面，再次确认后调用 DELETE 接口。
+解冻成功后的退出会话、提示及返回登录页行为由前端实现。当前后端不创建页面或执行跳转。
 
 ## BE-02 注册后资料初始化验证
 
