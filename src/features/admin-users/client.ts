@@ -13,6 +13,17 @@ type ApiErrorBody = {
   };
 };
 
+export class AdminUsersApiError extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "AdminUsersApiError";
+  }
+}
+
 async function request<T>(
   path: string,
   method: string,
@@ -23,9 +34,7 @@ async function request<T>(
     headers:
       body === undefined
         ? undefined
-        : {
-            "Content-Type": "application/json",
-          },
+        : { "Content-Type": "application/json" },
     body:
       body === undefined
         ? undefined
@@ -33,13 +42,41 @@ async function request<T>(
     cache: "no-store",
   });
 
-  const result = (await response.json()) as T & ApiErrorBody;
+  const result = (await response.json().catch(() => null)) as
+    | (T & ApiErrorBody)
+    | null;
 
   if (!response.ok) {
-    throw new Error(
-      result.error?.message ??
+    const code = result?.error?.code ?? "UNKNOWN_ERROR";
+
+    const errorMessages: Record<string, string> = {
+      UNAUTHENTICATED:
+        "Your session has expired. Please sign in again.",
+
+      ACCOUNT_DISABLED:
+        "Your account has been disabled. Please contact an administrator.",
+
+      FORBIDDEN:
+        "You do not have permission to perform this action.",
+
+      ACCOUNT_STATUS_UNAVAILABLE:
+        "Unable to verify account status. Please try again later.",
+
+      ADMIN_SERVICE_UNAVAILABLE:
+        "Administrator service is temporarily unavailable.",
+    };
+
+    throw new AdminUsersApiError(
+      code,
+      response.status,
+      errorMessages[code] ??
+        result?.error?.message ??
         `Users API request failed (${response.status}).`,
     );
+  }
+
+  if (!result) {
+    throw new Error("The server returned an invalid response.");
   }
 
   return result;

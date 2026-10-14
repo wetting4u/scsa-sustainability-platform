@@ -64,6 +64,13 @@ export default function AdminChallengesPage() {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
+    const minimumValue = String(formData.get("minHouseholdSize") ?? "").trim();
+
+    const maximumValue = String(formData.get("maxHouseholdSize") ?? "").trim();
+
+    const minHouseholdSize = minimumValue === "" ? null : Number(minimumValue);
+
+    const maxHouseholdSize = maximumValue === "" ? null : Number(maximumValue);
 
     const challenge: ChallengeInput = {
       title: String(formData.get("title") ?? "").trim(),
@@ -74,6 +81,8 @@ export default function AdminChallengesPage() {
       end: String(formData.get("end") ?? ""),
       tag: String(formData.get("tag") ?? "").trim(),
       icon: String(formData.get("icon") ?? "sprout"),
+      minHouseholdSize,
+      maxHouseholdSize,
     };
 
     if (
@@ -88,6 +97,20 @@ export default function AdminChallengesPage() {
     ) {
       setError(
         "Complete every field and enter a valid target and date period.",
+      );
+      return;
+    }
+    if (
+      (minHouseholdSize !== null &&
+        (!Number.isInteger(minHouseholdSize) || minHouseholdSize < 1)) ||
+      (maxHouseholdSize !== null &&
+        (!Number.isInteger(maxHouseholdSize) || maxHouseholdSize < 1)) ||
+      (minHouseholdSize !== null &&
+        maxHouseholdSize !== null &&
+        minHouseholdSize > maxHouseholdSize)
+    ) {
+      setError(
+        "Household size limits must be positive whole numbers, and the minimum cannot exceed the maximum.",
       );
       return;
     }
@@ -167,6 +190,7 @@ export default function AdminChallengesPage() {
             type="button"
             className="button primary"
             onClick={openCreateForm}
+            disabled={loading || saving || deleting !== null}
           >
             <Icon name="plus" />
             Create challenge
@@ -244,14 +268,40 @@ export default function AdminChallengesPage() {
                 />
               </label>
 
-              <PeriodPicker
-                scope="challenge"
-                existing={
-                  editing
-                    ? { start: editing.start, end: editing.end }
-                    : undefined
-                }
-              />
+          <PeriodPicker
+            scope="challenge"
+            existing={
+              editing
+                ? { start: editing.start, end: editing.end }
+                : undefined
+            }
+          />
+
+          <label>
+            Minimum household size
+            <input
+              name="minHouseholdSize"
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              defaultValue={editing?.minHouseholdSize ?? ""}
+              placeholder="No minimum"
+            />
+          </label>
+
+          <label>
+            Maximum household size
+            <input
+              name="maxHouseholdSize"
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              defaultValue={editing?.maxHouseholdSize ?? ""}
+              placeholder="No maximum"
+            />
+          </label>
 
               <label>
                 Icon
@@ -309,56 +359,71 @@ export default function AdminChallengesPage() {
 
       <div className="section-title">
         <h2>Current challenges</h2>
-        <span>
+        <span role="status">
           {loading ? "Loading..." : `${challenges.length} challenges`}
         </span>
       </div>
 
       <div className="three-grid">
-        {challenges.map((challenge) => (
-          <article className="panel" key={challenge.id}>
-            <Icon name="challenges" size={30} />
+        {!loading &&
+          !error &&
+          challenges.map((challenge) => (
+            <article className="panel" key={challenge.id}>
+              <Icon name="challenges" size={30} />
 
-            <div className="eyebrow">{challenge.tag}</div>
+              <div className="eyebrow">{challenge.tag}</div>
 
-            <h2>{challenge.title}</h2>
-            <p>{challenge.description}</p>
+              <h2>{challenge.title}</h2>
+              <p>{challenge.description}</p>
 
-            <p>
-              <strong>
-                {resources[challenge.resource].label}:{" "}
-                {challenge.target.toLocaleString()}{" "}
-                {resources[challenge.resource].unit}
-              </strong>
-            </p>
+              <p>
+                <strong>
+                  {resources[challenge.resource].label}:{" "}
+                  {challenge.target.toLocaleString()}{" "}
+                  {resources[challenge.resource].unit}
+                </strong>
+              </p>
 
-            <p>
-              {challenge.start} — {challenge.end}
-            </p>
+              <p>
+                {challenge.start} — {challenge.end}
+              </p>
+              <p>
+                <strong>Household size:</strong>{" "}
+                {challenge.minHouseholdSize == null &&
+                challenge.maxHouseholdSize == null
+                  ? "No restriction"
+                  : challenge.minHouseholdSize != null &&
+                      challenge.maxHouseholdSize != null
+                    ? `${challenge.minHouseholdSize}–${challenge.maxHouseholdSize} people`
+                    : challenge.minHouseholdSize != null
+                      ? `${challenge.minHouseholdSize}+ people`
+                      : `Up to ${challenge.maxHouseholdSize} people`}
+              </p>
 
-            <div className="form-actions">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => openEditForm(challenge)}
-              >
-                Edit
-              </button>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => openEditForm(challenge)}
+                  disabled={saving || deleting !== null}
+                >
+                  Edit
+                </button>
 
-              <button
-                type="button"
-                className="button secondary"
-                disabled={deleting === challenge.id}
-                onClick={() => void handleDelete(challenge)}
-              >
-                {deleting === challenge.id ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </article>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={saving || deleting !== null}
+          onClick={() => void handleDelete(challenge)}
+        >
+          {deleting === challenge.id ? "Deleting..." : "Delete"}
+        </button>
+        </div>
+        </article>
         ))}
       </div>
 
-      {!loading && challenges.length === 0 && (
+      {!loading && !error && challenges.length === 0 && (
         <section className="panel">
           <p>No challenges are currently available.</p>
         </section>

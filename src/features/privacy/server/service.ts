@@ -11,6 +11,7 @@ type HouseholdProfileRow = {
   household_size: number;
   share_analytics: boolean;
   display_leaderboard: boolean;
+  community_area_id: string | null;
 };
 
 const noStoreHeaders = {
@@ -38,6 +39,7 @@ function mapProfile(row: HouseholdProfileRow): HouseholdProfile {
     householdSize: Number(row.household_size),
     shareAnalytics: row.share_analytics,
     displayLeaderboard: row.display_leaderboard,
+    communityAreaId: row.community_area_id,
   };
 }
 
@@ -67,7 +69,7 @@ export async function getProfile() {
   const { data, error } = await authorization.supabase
     .from("household_profiles")
     .select(
-      "display_name, household_size, share_analytics, display_leaderboard",
+      "display_name, household_size, share_analytics, display_leaderboard, community_area_id",
     )
     .eq("user_id", authorization.userId)
     .maybeSingle();
@@ -119,7 +121,7 @@ export async function updateProfile(request: Request) {
   }
 
   const changes = validation.data;
-  const databaseChanges: Record<string, string | number | boolean> = {};
+  const databaseChanges: Record<string, string | number | boolean | null> = {};
 
   if (changes.displayName !== undefined) {
     databaseChanges.display_name = changes.displayName;
@@ -136,13 +138,44 @@ export async function updateProfile(request: Request) {
   if (changes.displayLeaderboard !== undefined) {
     databaseChanges.display_leaderboard = changes.displayLeaderboard;
   }
+  if (changes.communityAreaId !== undefined) {
+  if (changes.communityAreaId === null) {
+    databaseChanges.community_area_id = null;
+  } else {
+    const { data: communityArea, error: communityAreaError } =
+      await authorization.supabase
+        .from("community_areas")
+        .select("id")
+        .eq("id", changes.communityAreaId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+    if (communityAreaError) {
+      return apiError(
+        500,
+        "COMMUNITY_AREA_QUERY_FAILED",
+        "Unable to verify the selected Community Area.",
+      );
+    }
+
+    if (!communityArea) {
+      return apiError(
+        400,
+        "INVALID_COMMUNITY_AREA",
+        "Please select an active Community Area.",
+      );
+    }
+
+    databaseChanges.community_area_id = changes.communityAreaId;
+  }
+}
 
   const { data, error } = await authorization.supabase
     .from("household_profiles")
     .update(databaseChanges)
     .eq("user_id", authorization.userId)
     .select(
-      "display_name, household_size, share_analytics, display_leaderboard",
+      "display_name, household_size, share_analytics, display_leaderboard, community_area_id",
     )
     .maybeSingle();
 

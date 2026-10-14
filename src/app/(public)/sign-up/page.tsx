@@ -9,6 +9,8 @@ export default function SignUpPage() {
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
 const passwordRules = [
   {
@@ -83,6 +85,8 @@ const passwordValid = passwordRules.every((rule) => rule.valid);
 
   form.reset();
   setPassword("");
+  setShowPassword(false);
+  setShowConfirmPassword(false);
 } catch (requestError) {
   setError(
     requestError instanceof Error
@@ -131,15 +135,42 @@ const passwordValid = passwordRules.every((rule) => rule.valid);
 
           <label>
             Password
-            <input
-              name="password"
-              type="password"
-              placeholder="Create a strong password"
-              minLength={8}
-              required
-              onChange={(event) => setPassword(event.target.value)}
-              aria-describedby="password-requirements"
-            />
+
+            <div style={{ position: "relative" }}>
+              <input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Create a strong password"
+                minLength={8}
+                required
+                onChange={(event) => setPassword(event.target.value)}
+                aria-describedby="password-requirements"
+                style={{
+                  width: "100%",
+                  paddingRight: "72px",
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  padding: "6px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                }}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </label>
 
           <ul
@@ -171,12 +202,45 @@ const passwordValid = passwordRules.every((rule) => rule.valid);
 
           <label>
             Confirm password
-            <input
-              name="confirmPassword"
-              type="password"
-              placeholder="Enter your password again"
-              required
-            />
+
+            <div style={{ position: "relative" }}>
+              <input
+                name="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Enter your password again"
+                required
+                style={{
+                  width: "100%",
+                  paddingRight: "72px",
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowConfirmPassword((current) => !current)
+                }
+                aria-label={
+                  showConfirmPassword
+                    ? "Hide confirm password"
+                    : "Show confirm password"
+                }
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  padding: "6px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                }}
+              >
+                {showConfirmPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </label>
 
           {error && (

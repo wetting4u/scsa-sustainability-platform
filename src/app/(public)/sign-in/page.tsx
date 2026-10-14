@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function SignInPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -75,13 +76,40 @@ export default function SignInPage() {
 
           <label>
             Password
-            <input
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              placeholder="Enter your password"
-              required
-            />
+
+            <div style={{ position: "relative" }}>
+              <input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                required
+                style={{
+                  width: "100%",
+                  paddingRight: "72px",
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  padding: "6px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                }}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </label>
 
           {error && (

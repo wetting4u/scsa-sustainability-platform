@@ -5,19 +5,34 @@ import { createClient } from "@/lib/supabase/client";
 import { Icon, PageHeading } from "@/components/ui";
 import { isStrongPassword } from "@/features/auth/domain";
 import { profileApi } from "./client";
+type CommunityArea = {
+  id: string;
+  name: string;
+};
 export function Settings() {
   const [analytics, setAnalytics] = useState(false);
   const [leaderboard, setLeaderboard] = useState(false);
   const [household, setHousehold] = useState("");
   const [householdSize, setHouseholdSize] = useState(1);
+  const [communityAreaId, setCommunityAreaId] = useState("");
+  const [communityAreas, setCommunityAreas] = useState<CommunityArea[]>([]);
+  const [communityAreasLoading, setCommunityAreasLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] =
+  useState<"success" | "error">("success");
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordMessage, setPasswordMessage] = useState("");
   const [profileUpdated, setProfileUpdated] = useState(false);
+  const [resettingProgress, setResettingProgress] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+  const [freezingAccount, setFreezingAccount] = useState(false);
+  const [freezeError, setFreezeError] = useState("");
+  
 
   useEffect(() => {
     let active = true;
@@ -31,19 +46,51 @@ export function Settings() {
           setHouseholdSize(data.householdSize);
           setAnalytics(data.shareAnalytics);
           setLeaderboard(data.displayLeaderboard);
+          setCommunityAreaId(data.communityAreaId ?? "");
         }
       } catch (profileError) {
         if (active) {
+          setMessageType("error");
           setMessage(
             profileError instanceof Error
               ? profileError.message
               : "Unable to load your household profile.",
           );
         }
+      } finally {
+        if (active) {
+          setProfileLoading(false);
+        }
       }
     }
 
+    async function loadCommunityAreas() {
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from("community_areas")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true });
+
+    if (!active) {
+      return;
+    }
+
+    if (error) {
+      console.error(error);
+      setMessageType("error");
+      setMessage("Unable to load Community Areas.");
+      setCommunityAreasLoading(false);
+      return;
+    }
+
+    setCommunityAreas((data ?? []) as CommunityArea[]);
+    setCommunityAreasLoading(false);
+  }
+
     void loadProfile();
+    void loadCommunityAreas();
 
     return () => {
       active = false;
@@ -59,11 +106,17 @@ export function Settings() {
 
     const size = Number(formData.get("householdSize"));
 
+    const selectedCommunityAreaId = String(
+    formData.get("communityAreaId") ?? "",
+    ).trim();
+
     if (!value) {
+      setMessageType("error");
       setMessage("Please enter a household name.");
       return;
     }
     if (!Number.isInteger(size) || size < 1 || size > 20) {
+      setMessageType("error");
       setMessage("Household size must be a whole number between 1 and 20.");
       return;
     }
@@ -76,15 +129,18 @@ export function Settings() {
       const { data } = await profileApi.update({
         displayName: value,
         householdSize: size,
+        communityAreaId: selectedCommunityAreaId || null,
       });
 
       setHousehold(data.displayName);
       setHouseholdSize(data.householdSize);
       setAnalytics(data.shareAnalytics);
       setLeaderboard(data.displayLeaderboard);
+      setCommunityAreaId(data.communityAreaId ?? "");
       setProfileUpdated(true);
       router.refresh();
     } catch (profileError) {
+      setMessageType("error");
       setMessage(
         profileError instanceof Error
           ? profileError.message
@@ -106,14 +162,17 @@ export function Settings() {
 
       setAnalytics(data.shareAnalytics);
       setLeaderboard(data.displayLeaderboard);
+      setMessageType("success");
+      setMessageType("success");
       setMessage("Privacy preference updated.");
     } catch (profileError) {
-      setMessage(
-        profileError instanceof Error
-          ? profileError.message
-          : "Unable to update your privacy preference.",
-      );
-    } finally {
+    setMessageType("error");
+    setMessage(
+      profileError instanceof Error
+        ? profileError.message
+        : "Unable to update your privacy preference.",
+    );
+  } finally {
       setSavingPrivacy(false);
     }
   }
@@ -157,6 +216,96 @@ export function Settings() {
     }
 
     setChangingPassword(false);
+    }
+      async function handleResetProgress() {
+      const confirmed = window.confirm(
+        "Reset all of your progress?\n\n" +
+          "This will permanently delete your usage records, goals, challenge participation, and badge progress. " +
+          "Your account, household profile, Community Area, and privacy settings will be kept.",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      setResettingProgress(true);
+      setResetMessage("");
+
+      try {
+        const response = await fetch("/api/account/reset", {
+          method: "POST",
+          cache: "no-store",
+        });
+
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              data?: { reset?: boolean };
+              error?: { message?: string };
+            }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.error?.message ?? "Unable to reset your account progress.",
+          );
+        }
+
+        setResetMessage("Your account progress has been reset successfully.");
+        router.refresh();
+      } catch (resetError) {
+        setResetMessage(
+          resetError instanceof Error
+            ? resetError.message
+            : "Unable to reset your account progress.",
+        );
+      } finally {
+        setResettingProgress(false);
+      }
+    }
+    async function handleFreezeAccount() {
+    const confirmed = window.confirm(
+      "Freeze your account?\n\n" +
+        "You will temporarily lose access to household features. " +
+        "Your account and saved information will be kept, and you can unfreeze the account later.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setFreezingAccount(true);
+    setFreezeError("");
+
+    try {
+      const response = await fetch("/api/account/freeze", {
+        method: "POST",
+        cache: "no-store",
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            data?: { frozen?: boolean };
+            error?: { message?: string };
+          }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error?.message ?? "Unable to freeze your account.",
+        );
+      }
+
+      router.replace("/account-frozen");
+      router.refresh();
+    } catch (freezeAccountError) {
+      setFreezeError(
+        freezeAccountError instanceof Error
+          ? freezeAccountError.message
+          : "Unable to freeze your account.",
+      );
+    } finally {
+      setFreezingAccount(false);
+    }
   }
   return (
     <>
@@ -182,9 +331,11 @@ export function Settings() {
                 name="household"
                 defaultValue={household}
                 maxLength={60}
+                disabled={profileLoading || saving}
                 required
               />
             </label>
+
             <label>
               Household size
               <input
@@ -195,17 +346,103 @@ export function Settings() {
                 max={20}
                 step={1}
                 defaultValue={householdSize}
+                disabled={profileLoading || saving}
                 required
               />
             </label>
+            
+            <label>
+              Community Area
+              <select
+                name="communityAreaId"
+                value={communityAreaId}
+                onChange={(event) => setCommunityAreaId(event.target.value)}
+                disabled={communityAreasLoading || profileLoading || saving}
+              >
+                <option value="">
+                  {communityAreasLoading
+                    ? "Loading Community Areas..."
+                    : "Select your Community Area"}
+                </option>
+
+                {communityAreas.map((area) => (
+                  <option key={area.id} value={area.id}>
+                    {area.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <p className="caption">
-              You can update this name at any time. No address or personal
-              details are required.
+              Choose the Community Area that best matches your household.
+              No street address or postcode is required.
             </p>
-            <button className="button primary" type="submit" disabled={saving}>
-              {saving ? "Saving..." : "Save profile"}
+            <button
+              className="button primary"
+              type="submit"
+              disabled={saving || profileLoading}
+            >
+              {profileLoading
+                ? "Loading profile..."
+                : saving
+                  ? "Saving..."
+                  : "Save profile"}
             </button>
           </form>
+        </section>
+        <section className="panel">
+          <h2>Account controls</h2>
+
+          <p>
+            Manage your saved progress and account access.
+          </p>
+
+          <div style={{ marginTop: "20px" }}>
+            <strong>Reset progress</strong>
+
+            <p className="caption">
+              Permanently delete your usage records, goals, challenge participation,
+              and badge progress. Your account, household profile, Community Area,
+              and privacy preferences will be kept.
+            </p>
+
+            <button
+              type="button"
+              className="button secondary"
+              disabled={resettingProgress || freezingAccount}
+              onClick={() => void handleResetProgress()}
+            >
+              {resettingProgress ? "Resetting..." : "Reset progress"}
+            </button>
+
+            {resetMessage && (
+              <p role="status" style={{ marginTop: "12px" }}>
+                {resetMessage}
+              </p>
+            )}
+          </div>
+          <div style={{ marginTop: "28px" }}>
+          <strong>Freeze account</strong>
+
+          <p className="caption">
+            Temporarily pause access to household features without deleting your
+            account or saved information. You can unfreeze the account later.
+          </p>
+
+          <button
+            type="button"
+            className="button secondary"
+            disabled={freezingAccount || resettingProgress}
+            onClick={() => void handleFreezeAccount()}
+          >
+            {freezingAccount ? "Freezing..." : "Freeze account"}
+          </button>
+
+          {freezeError && (
+            <p className="error" role="alert">
+              {freezeError}
+            </p>
+          )}
+        </div>
         </section>
         <section className="panel">
           <h2>Change password</h2>
@@ -316,9 +553,14 @@ export function Settings() {
           </div>
         </section>
       </div>
-      <p role="status" className={message ? "success" : ""}>
-        {message}
-      </p>
+      {message && (
+        <p
+          role={messageType === "error" ? "alert" : "status"}
+          className={messageType === "error" ? "error" : "success"}
+        >
+          {message}
+        </p>
+      )}
       {profileUpdated && (
         <div
           role="dialog"

@@ -12,27 +12,142 @@ import {
 import { recordsApi } from "@/features/records/client";
 
 import styles from "./overview.module.css";
+import { createClient } from "@/lib/supabase/client";
+
+type EarnedBadge = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  awardedAt: string;
+};
+
+type BadgeQueryRow = {
+  awarded_at: string;
+  badge: {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+  } | null;
+};
 export function Overview() {
   const [records, setRecords] = useState<UsageRecord[]>([]);
   const [resource, setResource] = useState<Resource>("electricity");
+  const [loading, setLoading] = useState(true);
+  const [recordsError, setRecordsError] = useState("");
 
-  useEffect(() => {
-    async function loadRecords() {
-      try {
-        const { data } = await recordsApi.list();
-        setRecords(data);
-      } catch {
-        setRecords([]);
-      }
+  const [badges, setBadges] = useState<EarnedBadge[]>([]);
+  const [badgesLoading, setBadgesLoading] = useState(true);
+  const [badgesError, setBadgesError] = useState("");
+
+useEffect(() => {
+  async function loadRecords() {
+    try {
+      const { data } = await recordsApi.list();
+      setRecords(data);
+      setRecordsError("");
+    } catch (error) {
+      console.error(error);
+      setRecords([]);
+      setRecordsError("Unable to load your resource records.");
+    } finally {
+      setLoading(false);
+    }
     }
 
     void loadRecords();
   }, []);
+
+  useEffect(() => {
+    async function loadBadges() {
+      const supabase = createClient();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setBadgesLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_badges")
+        .select(
+          `
+        awarded_at,
+        badge:badges (
+          id,
+          name,
+          description,
+          icon
+        )
+      `,
+        )
+        .eq("user_id", user.id)
+        .order("awarded_at", { ascending: false });
+
+      if (error) {
+        console.error(error);
+        setBadgesError("Unable to load your badges.");
+        setBadgesLoading(false);
+        return;
+      }
+
+      const rows = (data ?? []) as unknown as BadgeQueryRow[];
+      const earnedBadges: EarnedBadge[] = [];
+
+      for (const row of rows) {
+        if (!row.badge) continue;
+
+        earnedBadges.push({
+          id: row.badge.id,
+          name: row.badge.name,
+          description: row.badge.description,
+          icon: row.badge.icon,
+          awardedAt: row.awarded_at,
+        });
+      }
+
+      setBadges(earnedBadges);
+      setBadgesLoading(false);
+    }
+
+    void loadBadges();
+  }, []);
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const lastDayOfMonth = new Date(
+    currentYear,
+    currentMonth + 1,
+    0,
+  ).getDate();
+
+  const monthLabel = now.toLocaleString("en-AU", {
+    month: "short",
+  });
+
+  function monthDate(day: number) {
+    return `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(
+      day,
+    ).padStart(2, "0")}`;
+  }
+
+  const currentMonthStart = monthDate(1);
+  const currentMonthEnd = monthDate(lastDayOfMonth);
+
   const weeks = [
-    ["01–07 Sep", "2026-09-01", "2026-09-07"],
-    ["08–14 Sep", "2026-09-08", "2026-09-14"],
-    ["15–21 Sep", "2026-09-15", "2026-09-21"],
-    ["22–30 Sep", "2026-09-22", "2026-09-30"],
+    ["01–07 " + monthLabel, monthDate(1), monthDate(7)],
+    ["08–14 " + monthLabel, monthDate(8), monthDate(14)],
+    ["15–21 " + monthLabel, monthDate(15), monthDate(21)],
+    [
+      `22–${String(lastDayOfMonth).padStart(2, "0")} ${monthLabel}`,
+      monthDate(22),
+      monthDate(lastDayOfMonth),
+    ],
   ];
   const values = weeks.map((w) => totalFor(records, resource, w[1], w[2]));
   const hasData = weeks.map((w) =>
@@ -41,6 +156,15 @@ export function Overview() {
     ),
   );
   const max = Math.max(...values, 1);
+  const latestBadge = badges[0];
+  const badgeIcon =
+  latestBadge?.icon === "drop" ||
+  latestBadge?.icon === "bolt" ||
+  latestBadge?.icon === "sprout" ||
+  latestBadge?.icon === "leaf" ||
+  latestBadge?.icon === "award"
+    ? latestBadge.icon
+    : "award";
   return (
     <>
       <PageHeading
@@ -54,6 +178,18 @@ export function Overview() {
           </Link>
         }
       />
+      {loading && (
+        <div className="notice" role="status">
+          <Icon name="records" />
+          Loading your resource records...
+        </div>
+      )}
+
+      {recordsError && (
+        <p className="error" role="alert">
+          {recordsError}
+        </p>
+      )}
       <section className="welcome-banner">
         <div>
           <span className="eyebrow">LET’S GROW SOMETHING GOOD</span>
@@ -106,24 +242,29 @@ export function Overview() {
             </div>
             <div className="stat-value">
               {records.some(
-                (r) =>
-                  r.resource === key &&
-                  r.start >= "2026-09-01" &&
-                  r.end <= "2026-09-30",
-              )
-                ? totalFor(records, key).toLocaleString()
-                : "—"}{" "}
+              (r) =>
+                r.resource === key &&
+                r.start >= currentMonthStart &&
+                r.end <= currentMonthEnd,
+            )
+              ? totalFor(
+                  records,
+                  key,
+                  currentMonthStart,
+                  currentMonthEnd,
+                ).toLocaleString()
+              : "—"}{" "}
               <small>{resources[key].unit}</small>
             </div>
             <p>Recorded usage this month</p>
             <div className="stat-foot">
               {
                 records.filter(
-                  (r) =>
-                    r.resource === key &&
-                    r.start >= "2026-09-01" &&
-                    r.end <= "2026-09-30",
-                ).length
+                (r) =>
+                  r.resource === key &&
+                  r.start >= currentMonthStart &&
+                  r.end <= currentMonthEnd,
+              ).length
               }{" "}
               entries <span>Manual household records</span>
             </div>
@@ -174,18 +315,40 @@ export function Overview() {
             week only. Missing data is not zero usage.
           </p>
         </section>
-        <section className="badge-card">
+        <section className="badge-card" aria-live="polite">
           <span className="badge-medal">
-            <Icon name="award" size={34} />
+            <Icon name={badgeIcon} size={34} />
           </span>
+
           <div>
-            <div className="eyebrow">YOUR FIRST SMALL WIN</div>
-            <h3>Every journey starts somewhere</h3>
+            <div className="eyebrow">
+              {badgesLoading
+                ? "CHECKING YOUR PROGRESS"
+                : latestBadge
+                  ? "YOUR LATEST SMALL WIN"
+                  : "YOUR NEXT SMALL WIN"}
+            </div>
+
+            <h3>
+              {badgesLoading
+                ? "Loading your badges..."
+                : (latestBadge?.name ?? "Every journey starts somewhere")}
+            </h3>
+
             <p>
-              First record badge ·{" "}
-              {records.length
-                ? "Unlocked in this demo"
-                : "Add a record to unlock"}
+              {badgesError
+                ? badgesError
+                : badgesLoading
+                  ? "Looking for the achievements you have earned."
+                  : latestBadge
+                    ? `${latestBadge.description} · Earned ${new Date(
+                        latestBadge.awardedAt,
+                      ).toLocaleDateString("en-AU", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}`
+                    : "Complete activities to earn your first badge."}
             </p>
           </div>
         </section>

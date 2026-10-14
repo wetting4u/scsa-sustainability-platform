@@ -10,6 +10,8 @@ export type Challenge = {
   end: string;
   tag: string;
   icon: string;
+  minHouseholdSize?: number | null;
+  maxHouseholdSize?: number | null;
   duration: string;
 };
 
