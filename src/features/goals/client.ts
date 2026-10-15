@@ -1,5 +1,7 @@
 "use client";
 
+import { validateGoalTitle } from "../../lib/validation/content.ts";
+
 import type { Goal } from "@/features/records/domain";
 
 type ApiErrorBody = {
@@ -14,6 +16,12 @@ async function request<T>(
   method: string,
   body?: unknown,
 ): Promise<T> {
+  if (method === "POST" || method === "PATCH") {
+    const values = body as Record<string, unknown>;
+    const validation = validateGoalTitle(values.title);
+    if (!validation.ok) throw new Error(validation.message);
+    body = { ...values, title: validation.value };
+  }
   const response = await fetch(path, {
     method,
     headers:

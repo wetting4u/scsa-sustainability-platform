@@ -1,4 +1,9 @@
 "use client";
+import {
+  reportSensitiveFields,
+  clearFieldValidity,
+} from "@/lib/validation/form";
+
 import { PeriodPicker } from "@/components/period-picker";
 
 import { useEffect, useState, type FormEvent } from "react";
@@ -200,6 +205,10 @@ export function Goals() {
 
   async function handleGoalSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!reportSensitiveFields(event.currentTarget, { title: "Goal title" })) {
+      setError("");
+      return;
+    }
 
     const formData = new FormData(event.currentTarget);
     const resourceValue = String(formData.get("resource"));
@@ -332,7 +341,11 @@ export function Goals() {
         <section className="panel form-panel">
           <h2>{editing ? "Edit goal" : "Create a household goal"}</h2>
 
-          <form key={editing?.id ?? "new-goal"} onSubmit={handleGoalSubmit}>
+          <form
+            key={editing?.id ?? "new-goal"}
+            onSubmit={handleGoalSubmit}
+            onInput={clearFieldValidity}
+          >
             <div className="form-grid">
               <label>
                 Goal name

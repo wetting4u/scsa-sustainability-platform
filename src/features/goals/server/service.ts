@@ -1,3 +1,4 @@
+import { validateGoalTitle } from "@/lib/validation/content";
 import "server-only";
 import { validatePeriod, validatePeriodChange } from "@/lib/periods";
 
@@ -109,6 +110,9 @@ export async function createGoal(request: Request) {
   }
 
   const values = body as Record<string, unknown>;
+  const titleValidation = validateGoalTitle(values.title);
+  if (!titleValidation.ok)
+    return apiError(400, titleValidation.code, titleValidation.message);
   const resourceValue = String(values.resource ?? "");
 
   if (!Object.prototype.hasOwnProperty.call(resources, resourceValue)) {
@@ -116,7 +120,7 @@ export async function createGoal(request: Request) {
   }
 
   const goal: Omit<Goal, "id"> = {
-    title: String(values.title ?? "").trim(),
+    title: titleValidation.value,
     resource: resourceValue as Resource,
     target: Number(values.target),
     start: String(values.start ?? ""),
@@ -203,6 +207,9 @@ export async function updateGoal(request: Request, goalId: string) {
   }
 
   const values = body as Record<string, unknown>;
+  const titleValidation = validateGoalTitle(values.title);
+  if (!titleValidation.ok)
+    return apiError(400, titleValidation.code, titleValidation.message);
   const resourceValue = String(values.resource ?? "");
 
   if (!Object.prototype.hasOwnProperty.call(resources, resourceValue)) {
@@ -210,7 +217,7 @@ export async function updateGoal(request: Request, goalId: string) {
   }
 
   const goal: Omit<Goal, "id"> = {
-    title: String(values.title ?? "").trim(),
+    title: titleValidation.value,
     resource: resourceValue as Resource,
     target: Number(values.target),
     start: String(values.start ?? ""),

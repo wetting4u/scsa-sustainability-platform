@@ -1,3 +1,4 @@
+import { validateChallengeText } from "@/lib/validation/content";
 import "server-only";
 import { validatePeriod, validatePeriodChange } from "@/lib/periods";
 
@@ -88,17 +89,23 @@ async function readChallengeInput(request: Request): Promise<InputResult> {
   }
 
   const values = body as Record<string, unknown>;
+  const textValidation = validateChallengeText(values);
+  if (!textValidation.ok)
+    return {
+      ok: false,
+      response: apiError(400, textValidation.code, textValidation.message),
+    };
 
   const resource = String(values.resource ?? "") as Resource;
 
   const input: ChallengeInput = {
-    title: String(values.title ?? "").trim(),
-    description: String(values.description ?? "").trim(),
+    title: textValidation.value.title,
+    description: textValidation.value.description,
     resource,
     target: Number(values.target),
     start: String(values.start ?? ""),
     end: String(values.end ?? ""),
-    tag: String(values.tag ?? "").trim(),
+    tag: textValidation.value.tag,
     icon: String(values.icon ?? "").trim(),
   };
 
