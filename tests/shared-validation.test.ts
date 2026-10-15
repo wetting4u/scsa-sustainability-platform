@@ -64,8 +64,42 @@ test("validates values against an explicit allow-list", () => {
   assert.equal(validateAllowedValue("gas", resources, "Resource").ok, false);
 });
 
-test("keeps the production sensitive-word list empty but supports injection", () => {
-  assert.deepEqual(SENSITIVE_WORDS, []);
+test("blocks approved terms regardless of letter case", () => {
+  for (const word of SENSITIVE_WORDS) {
+    assert.equal(findSensitiveWord(word.toUpperCase()), word);
+  }
+  for (const input of ["bitch", "BITCH", "BiTch", "You are a BiTch!"]) {
+    assert.deepEqual(validateText(input, { field: "Title" }), {
+      ok: false,
+      code: "SENSITIVE_WORD",
+      message: "Title contains a disallowed term.",
+    });
+  }
+});
+
+test("matches complete words and phrases without blocking ordinary words", () => {
+  for (const input of [
+    "spice",
+    "spicy",
+    "Scunthorpe",
+    "shitake",
+    "bitchin",
+    "black",
+    "women",
+    "gay",
+    "transgender",
+  ]) {
+    assert.equal(findSensitiveWord(input), null);
+  }
+  assert.equal(findSensitiveWord("(BITCH)"), "bitch");
+  assert.equal(
+    findSensitiveWord("Women   BELONG\nin the Kitchen!"),
+    "women belong in the kitchen",
+  );
+  assert.equal(findSensitiveWord("women are inferiorities"), null);
+});
+
+test("supports custom lists and treats their regex characters literally", () => {
   assert.equal(findSensitiveWord("A blocked phrase", ["blocked"]), "blocked");
   assert.equal(
     validateText("A blocked phrase", {
@@ -74,4 +108,8 @@ test("keeps the production sensitive-word list empty but supports injection", ()
     }).ok,
     false,
   );
+  assert.equal(findSensitiveWord("bitch", []), null);
+  assert.equal(findSensitiveWord("(a+b)", ["a+b"]), "a+b");
+  assert.equal(findSensitiveWord("aaab", ["a+b"]), null);
+  assert.equal(findSensitiveWord("anything", [" "]), null);
 });

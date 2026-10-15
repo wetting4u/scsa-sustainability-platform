@@ -443,3 +443,42 @@
 - 初次类型检查发现旧 `.next` 缓存引用已删除页面，重新构建后已刷新缓存。
 - 构建自动改写的 `next-env.d.ts` 已恢复原版本，无最终源码差异。
 - 前端文件、README、Supabase 文件及数据库 migration 与 HEAD 无差异。
+
+## 2026-10-15：制作待审核英文敏感词草案
+
+### 新增文件
+
+- `docs/backend/english-sensitive-words-draft.md`：列出种族/族群歧视侮辱词、性别等攻击性短语
+  及可选普通辱骂词；标注上下文误判、正常身份词和待确认的匹配/处理规则。
+
+### 修改文件
+
+- `docs/backend/edit.md`：记录本次文档新增及待用户审核状态。
+
+### 启用状态与验证
+
+- 用户审核前不启用草案；`SENSITIVE_WORDS` 继续为空，匹配器和生产校验均未修改。
+- 本次没有修改前端、Supabase 或数据库。仅文档变更，不需要重新运行业务测试。
+
+## 2026-10-15：接入已确认英文敏感词库
+
+用户确认采用草案词库，要求忽略大小写。启用全部三组共 40 个词/短语，完整词/短语匹配，
+短语内空白归一化；`bitch`、`BITCH`、`BiTch` 均被共用文本校验拒绝。
+
+### 修改文件
+
+- `src/lib/validation/sensitive-words.ts`：填入词库；采用忽略大小写的 Unicode 边界匹配，
+  对正则特殊字符转义，保留自定义列表接口，避免普通单词子串误判。
+- `tests/shared-validation.test.ts`：更新空词库测试；验证全部词条大写命中、混合大小写拒绝、
+  正常词放行、短语空白、词边界及自定义列表转义。
+- `docs/backend/english-sensitive-words-draft.md`：标记用户确认与启用状态，记录实际匹配规则。
+- `docs/api-contracts.md`：更新 BE05 词库状态与错误约定。
+- `docs/architecture.md`：更新共用后端词库说明。
+- `docs/backend/W9-BE01-BE06-handoff.md`：更新 BE05 完成状态和业务字段接入职责。
+- `docs/backend/edit.md`：记录本次所有变更及验证。
+
+### 范围与验证
+
+- 词库在 `validateText()` 共用后端工具中默认启用；具体业务字段尚未接入该工具，由对应
+  功能负责人完成接入。未修改前端、数据库、Supabase 或密码/邮箱校验。
+- `pnpm test` 通过，共 41 项；`pnpm typecheck` 通过。

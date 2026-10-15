@@ -142,8 +142,9 @@ Week 9 审计确认：当前 `/api/admin/users*` 与 `/api/admin/challenges*` �
 - `validateAllowedValue()`：只接受显式 allow-list 中的字符串。
 - `findSensitiveWord()`：敏感词匹配接口。
 
-生产敏感词列表位于 `src/lib/validation/sensitive-words.ts`，目前按任务决定保持空数组。
-收到内容规则负责人确认的词库后，只需填写 `SENSITIVE_WORDS`，或由具体功能通过
+生产敏感词列表位于 `src/lib/validation/sensitive-words.ts`，2026-10-15 经 Yulong 确认启用
+40 个英文词/短语，忽略大小写并按完整词/短语边界匹配，短语中的连续空白会被归一化。
+`validateText()` 默认使用该词库，命中返回 `SENSITIVE_WORD`；也可由具体功能通过
 `sensitiveWords`/`sensitiveWordMatcher` 注入。各功能负责人仍须在自己的 DTO/service 中调用
 这些工具；工具本身不会自动拦截尚未接入的字段，也不会改写现有密码规则。
 
