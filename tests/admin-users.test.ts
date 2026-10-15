@@ -90,3 +90,45 @@ test("accepts only valid editable account fields", () => {
     assert.notEqual(validateUpdateAdminUser(input).error, null);
   }
 });
+
+test("rejects sensitive household names before administrator create and update", () => {
+  for (const householdName of [
+    "bitch",
+    "BITCH",
+    "BiTch",
+    "The FUCK household",
+    "Women ARE inferior",
+  ]) {
+    const create = validateCreateAdminUser({
+      email: "household@example.com",
+      password: "Strong1!",
+      householdName,
+      householdSize: 3,
+    });
+    const update = validateUpdateAdminUser({ householdName });
+    for (const result of [create, update]) {
+      assert.equal(result.data, null);
+      assert.equal(result.error?.code, "SENSITIVE_WORD");
+    }
+  }
+});
+
+test("preserves normal names and does not apply content checks to credentials", () => {
+  assert.equal(
+    validateCreateAdminUser({
+      email: "bitch@example.com",
+      password: "Bitch123!",
+      householdName: "Spice household",
+      householdSize: 3,
+    }).error,
+    null,
+  );
+  assert.equal(
+    validateUpdateAdminUser({ email: "bitch@example.com" }).error,
+    null,
+  );
+  assert.equal(
+    validateUpdateAdminUser({ householdName: "Spicy household" }).error,
+    null,
+  );
+});

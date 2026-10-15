@@ -482,3 +482,27 @@
 - 词库在 `validateText()` 共用后端工具中默认启用；具体业务字段尚未接入该工具，由对应
   功能负责人完成接入。未修改前端、数据库、Supabase 或密码/邮箱校验。
 - `pnpm test` 通过，共 41 项；`pnpm typecheck` 通过。
+
+## 2026-10-15：在本人负责的后端接口接入敏感词检查
+
+### 修改文件
+
+- `src/features/privacy/domain.ts`：Profile PATCH 的 `displayName` 通过既有类型/长度检查后
+  检查敏感词；保留现有字段和社区区域 UUID 验证。
+- `src/features/privacy/server/service.ts`：敏感词拒绝映射为 HTTP 400 `SENSITIVE_WORD`，
+  其他资料校验错误继续使用 `VALIDATION_ERROR`。
+- `src/features/admin-users/domain.ts`：管理员创建及修改用户时检查 `householdName`，在创建
+  Auth 用户或写入数据库前拒绝敏感名称；邮箱和密码保持原验证规则。
+- `tests/profile.test.ts`：验证 Profile 混合大小写敏感名称拒绝、正常名称和隐私更新放行。
+- `tests/admin-users.test.ts`：验证创建/修改敏感名称拒绝，以及正常名称、邮箱和密码不误判。
+- `docs/api-contracts.md`：列明已覆盖接口、字段、HTTP 错误码和未覆盖范围。
+- `docs/backend/english-sensitive-words-draft.md`：更新实际业务字段接入状态。
+- `docs/backend/W9-BE01-BE06-handoff.md`：更新已接入字段及其他模块负责人的对接事项。
+- `docs/backend/edit.md`：记录此次全部变更和验证结果。
+
+### 范围与验证
+
+- 仅修改本人负责的后端校验及测试/文档，没有修改前端、数据库、Supabase 配置或其他同事
+  的目标/挑战服务。直接调用 Supabase 的注册/写入不由这三个 Next.js 接口覆盖。
+- `pnpm test` 通过，共 44 项；`pnpm typecheck` 通过。新增 3 项测试覆盖实际 DTO 验证入口，
+  未使用真实账号创建或修改共享数据库数据。

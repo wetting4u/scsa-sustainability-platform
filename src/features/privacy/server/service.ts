@@ -117,7 +117,11 @@ export async function updateProfile(request: Request) {
   const validation = validateProfilePatch(body);
 
   if (validation.data === null) {
-    return apiError(400, "VALIDATION_ERROR", validation.error);
+    return apiError(
+      400,
+      validation.code ?? "VALIDATION_ERROR",
+      validation.error,
+    );
   }
 
   const changes = validation.data;
@@ -139,36 +143,36 @@ export async function updateProfile(request: Request) {
     databaseChanges.display_leaderboard = changes.displayLeaderboard;
   }
   if (changes.communityAreaId !== undefined) {
-  if (changes.communityAreaId === null) {
-    databaseChanges.community_area_id = null;
-  } else {
-    const { data: communityArea, error: communityAreaError } =
-      await authorization.supabase
-        .from("community_areas")
-        .select("id")
-        .eq("id", changes.communityAreaId)
-        .eq("is_active", true)
-        .maybeSingle();
+    if (changes.communityAreaId === null) {
+      databaseChanges.community_area_id = null;
+    } else {
+      const { data: communityArea, error: communityAreaError } =
+        await authorization.supabase
+          .from("community_areas")
+          .select("id")
+          .eq("id", changes.communityAreaId)
+          .eq("is_active", true)
+          .maybeSingle();
 
-    if (communityAreaError) {
-      return apiError(
-        500,
-        "COMMUNITY_AREA_QUERY_FAILED",
-        "Unable to verify the selected Community Area.",
-      );
+      if (communityAreaError) {
+        return apiError(
+          500,
+          "COMMUNITY_AREA_QUERY_FAILED",
+          "Unable to verify the selected Community Area.",
+        );
+      }
+
+      if (!communityArea) {
+        return apiError(
+          400,
+          "INVALID_COMMUNITY_AREA",
+          "Please select an active Community Area.",
+        );
+      }
+
+      databaseChanges.community_area_id = changes.communityAreaId;
     }
-
-    if (!communityArea) {
-      return apiError(
-        400,
-        "INVALID_COMMUNITY_AREA",
-        "Please select an active Community Area.",
-      );
-    }
-
-    databaseChanges.community_area_id = changes.communityAreaId;
   }
-}
 
   const { data, error } = await authorization.supabase
     .from("household_profiles")

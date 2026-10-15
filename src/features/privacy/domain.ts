@@ -1,3 +1,5 @@
+import { findSensitiveWord } from "../../lib/validation/sensitive-words.ts";
+
 export type HouseholdProfile = {
   displayName: string;
   householdSize: number;
@@ -9,7 +11,8 @@ export type HouseholdProfile = {
 export type HouseholdProfilePatch = Partial<HouseholdProfile>;
 
 type ProfilePatchResult =
-  { data: HouseholdProfilePatch; error: null } | { data: null; error: string };
+  | { data: HouseholdProfilePatch; error: null }
+  | { data: null; error: string; code?: "SENSITIVE_WORD" };
 
 const allowedProfileFields = new Set<keyof HouseholdProfile>([
   "displayName",
@@ -54,6 +57,14 @@ export function validateProfilePatch(input: unknown): ProfilePatchResult {
       };
     }
 
+    if (findSensitiveWord(displayName)) {
+      return {
+        data: null,
+        code: "SENSITIVE_WORD",
+        error: "Household name contains a disallowed term.",
+      };
+    }
+
     patch.displayName = displayName;
   }
 
@@ -88,29 +99,29 @@ export function validateProfilePatch(input: unknown): ProfilePatchResult {
     patch[field] = values[field];
   }
   if (Object.hasOwn(values, "communityAreaId")) {
-  const areaId = values.communityAreaId;
+    const areaId = values.communityAreaId;
 
-  if (areaId === null) {
-    patch.communityAreaId = null;
-  } else if (typeof areaId === "string") {
-    const uuidPattern =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (areaId === null) {
+      patch.communityAreaId = null;
+    } else if (typeof areaId === "string") {
+      const uuidPattern =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-    if (!uuidPattern.test(areaId)) {
+      if (!uuidPattern.test(areaId)) {
+        return {
+          data: null,
+          error: "Please select a valid Community Area.",
+        };
+      }
+
+      patch.communityAreaId = areaId;
+    } else {
       return {
         data: null,
         error: "Please select a valid Community Area.",
       };
     }
-
-    patch.communityAreaId = areaId;
-  } else {
-    return {
-      data: null,
-      error: "Please select a valid Community Area.",
-    };
   }
-}
 
   return { data: patch, error: null };
 }

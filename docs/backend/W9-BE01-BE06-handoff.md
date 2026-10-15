@@ -47,8 +47,9 @@
 ### 内容规则负责人
 
 初始英文词库已确认并实现，详情见 `english-sensitive-words-draft.md`。后续词库扩充或例外
-规则由内容负责人确认。各功能负责人仍须在实际文本字段的后端校验中调用共用工具，当前
-词库不会自动覆盖所有业务接口。
+规则由内容负责人确认。Profile PATCH 的 `displayName`、Admin Users POST/PATCH 的
+`householdName` 已在后端接入，命中返回 HTTP 400 `SENSITIVE_WORD`。
+目标、挑战等其他功能负责人仍须在各自文本字段的后端校验中接入，不会自动覆盖所有接口。
 
 ## 手动回归清单
 

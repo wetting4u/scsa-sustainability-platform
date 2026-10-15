@@ -148,6 +148,19 @@ Week 9 审计确认：当前 `/api/admin/users*` 与 `/api/admin/challenges*` �
 `sensitiveWords`/`sensitiveWordMatcher` 注入。各功能负责人仍须在自己的 DTO/service 中调用
 这些工具；工具本身不会自动拦截尚未接入的字段，也不会改写现有密码规则。
 
+2026-10-15 已接入 Yulong 负责的以下后端写入入口，均在数据库写入或 Admin Auth 创建前
+检查名称，命中返回 HTTP 400 `SENSITIVE_WORD` 和安全提示，不回传命中的词：
+
+| 接口 | 检查字段 |
+| --- | --- |
+| `PATCH /api/profile` | `displayName` |
+| `POST /api/admin/users` | `householdName` |
+| `PATCH /api/admin/users/:userId` | `householdName`（请求包含时） |
+
+邮箱、密码、角色、ID、社区区域 ID 等不使用敏感词检查。目标标题、挑战名称/说明等其他
+模块需由对应后端负责人接入共用工具；注册直接调用 Supabase Auth 的流程也不在上述接口
+覆盖范围内。前端输入框检查只是即时提示，不能代替这些服务端检查。
+
 ## BE-05 Admin Users API
 
 所有接口先执行 BE-04 `requireAdmin()`，并使用仅存在于服务端的

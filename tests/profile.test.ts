@@ -41,6 +41,27 @@ test("requires boolean privacy preferences", () => {
   assert.notEqual(validateProfilePatch({ displayLeaderboard: 1 }).error, null);
 });
 
+test("rejects sensitive household names on profile updates regardless of case", () => {
+  for (const displayName of [
+    "bitch",
+    "BITCH",
+    "BiTch",
+    "The FUCK household",
+    "Women ARE inferior",
+  ]) {
+    assert.deepEqual(validateProfilePatch({ displayName }), {
+      data: null,
+      code: "SENSITIVE_WORD",
+      error: "Household name contains a disallowed term.",
+    });
+  }
+  assert.equal(
+    validateProfilePatch({ displayName: "Spice household" }).error,
+    null,
+  );
+  assert.equal(validateProfilePatch({ shareAnalytics: true }).error, null);
+});
+
 test("rejects ownership, role, pseudonym, and unknown fields", () => {
   for (const input of [
     { userId: "another-user" },

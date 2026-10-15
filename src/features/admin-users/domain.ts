@@ -1,4 +1,5 @@
 import { isStrongPassword } from "../auth/domain.ts";
+import { findSensitiveWord } from "../../lib/validation/sensitive-words.ts";
 
 export type AccountRole = "household" | "admin";
 
@@ -109,6 +110,13 @@ export function validateCreateAdminUser(
     );
   }
 
+  if (findSensitiveWord(input.householdName)) {
+    return invalid(
+      "SENSITIVE_WORD",
+      "Household name contains a disallowed term.",
+    );
+  }
+
   if (
     !Number.isInteger(input.householdSize) ||
     input.householdSize < 1 ||
@@ -178,6 +186,16 @@ export function validateUpdateAdminUser(
         "Enter a household name of no more than 60 characters.",
       );
     }
+  }
+
+  if (
+    input.householdName !== undefined &&
+    findSensitiveWord(input.householdName)
+  ) {
+    return invalid(
+      "SENSITIVE_WORD",
+      "Household name contains a disallowed term.",
+    );
   }
 
   if (value.householdSize !== undefined) {
