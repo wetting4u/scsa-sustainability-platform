@@ -13,6 +13,9 @@ type ChallengeRow = {
   description: string;
   resource: Resource;
   target: number | string;
+  reward_points: number | null;
+  min_household_size: number | null;
+  max_household_size: number | null;
   start_date: string;
   end_date: string;
   tag: string;
@@ -41,6 +44,9 @@ function mapChallenge(row: ChallengeRow): Challenge {
     description: row.description,
     resource: row.resource,
     target: Number(row.target),
+    rewardPoints: row.reward_points,
+    minHouseholdSize: row.min_household_size,
+    maxHouseholdSize: row.max_household_size,
     start: row.start_date,
     end: row.end_date,
     tag: row.tag,
@@ -103,6 +109,8 @@ async function readChallengeInput(request: Request): Promise<InputResult> {
     description: textValidation.value.description,
     resource,
     target: Number(values.target),
+    rewardPoints:
+      typeof values.rewardPoints === "number" ? values.rewardPoints : null,
     start: String(values.start ?? ""),
     end: String(values.end ?? ""),
     tag: textValidation.value.tag,
@@ -117,6 +125,10 @@ async function readChallengeInput(request: Request): Promise<InputResult> {
   const iconExists = ["sprout", "bolt", "drop"].includes(input.icon);
 
   if (
+    input.rewardPoints === null ||
+    !Number.isInteger(input.rewardPoints) ||
+    input.rewardPoints < 0 ||
+    input.rewardPoints > 1000000 ||
     !input.title ||
     input.title.length > 100 ||
     !input.description ||
@@ -173,13 +185,14 @@ export async function createAdminChallenge(request: Request) {
       description: challenge.description,
       resource: challenge.resource,
       target: challenge.target,
+      reward_points: challenge.rewardPoints,
       start_date: challenge.start,
       end_date: challenge.end,
       tag: challenge.tag,
       icon: challenge.icon,
     })
     .select(
-      "id, title, description, resource, target, start_date, end_date, tag, icon",
+      "id, title, description, resource, target, start_date, end_date, tag, icon, reward_points, min_household_size, max_household_size",
     )
     .single();
 
@@ -247,6 +260,7 @@ export async function updateAdminChallenge(
       description: challenge.description,
       resource: challenge.resource,
       target: challenge.target,
+      reward_points: challenge.rewardPoints,
       start_date: challenge.start,
       end_date: challenge.end,
       tag: challenge.tag,
@@ -254,7 +268,7 @@ export async function updateAdminChallenge(
     })
     .eq("id", challengeId)
     .select(
-      "id, title, description, resource, target, start_date, end_date, tag, icon",
+      "id, title, description, resource, target, start_date, end_date, tag, icon, reward_points, min_household_size, max_household_size",
     )
     .maybeSingle();
 
@@ -296,6 +310,12 @@ export async function deleteAdminChallenge(challengeId: string) {
     .maybeSingle();
 
   if (error) {
+    if (error.code === "23503")
+      return apiError(
+        409,
+        "CHALLENGE_HAS_REWARDS",
+        "This challenge has awarded points and cannot be deleted.",
+      );
     return apiError(
       500,
       "CHALLENGE_DELETE_FAILED",

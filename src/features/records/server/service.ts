@@ -39,22 +39,27 @@ export async function listRecords() {
 
   const { supabase, userId } = authorization;
 
-  const { data, error } = await supabase
-    .from("usage_records")
-    .select("id, resource, start_date, end_date, amount")
-    .eq("user_id", userId)
-    .order("end_date", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return apiError(
-      500,
-      "RECORDS_QUERY_FAILED",
-      "Unable to load usage records.",
-    );
+  const rows: UsageRecordRow[] = [];
+  // Read every page so older challenge periods cannot appear incomplete merely
+  // because PostgREST capped the response. ID provides a stable tie-break order.
+  for (;;) {
+    const { data, error } = await supabase
+      .from("usage_records")
+      .select("id, resource, start_date, end_date, amount")
+      .eq("user_id", userId)
+      .order("end_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(rows.length, rows.length + 999);
+    if (error)
+      return apiError(
+        500,
+        "RECORDS_QUERY_FAILED",
+        "Unable to load usage records.",
+      );
+    if (!data?.length) break;
+    rows.push(...(data as UsageRecordRow[]));
   }
-
-  const rows = (data ?? []) as UsageRecordRow[];
 
   const records: UsageRecord[] = rows.map((row) => ({
     id: row.id,

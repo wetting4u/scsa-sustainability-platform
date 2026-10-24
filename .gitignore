@@ -13,3 +13,10 @@ test-results/
 AGENTS.md
 *.pdf
 .DS_Store
+
+# Local project reference material
+/database/
+/docs/
+
+# Supabase CLI local cache
+/supabase/.temp/

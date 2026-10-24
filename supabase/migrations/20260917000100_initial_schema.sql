@@ -1,4 +1,4 @@
--- 第一阶段：用于全新 Supabase 项目；参考原 SQLite，不导入旧密码及演示账号。
+-- Phase one: for a fresh Supabase project; based on the original SQLite schema without importing old passwords or demo accounts.
 begin;
 create schema if not exists extensions;
 create extension if not exists btree_gist with schema extensions;
@@ -15,7 +15,7 @@ insert into public.resources values
   ('water', 'Water', 'L', 10000000),
   ('waste', 'Waste', 'kg', 100000);
 
--- 第一阶段：一个 Auth 账号代表一个家庭；多人共管家庭以后再扩展。
+-- Phase one: one Auth account represents one household; shared household management is deferred.
 create table public.household_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null default 'My household' check (char_length(btrim(display_name)) between 1 and 80),
@@ -26,7 +26,7 @@ create table public.household_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
--- 角色与可编辑家庭资料分开：用户不能自行提权。
+-- Roles are separate from editable household profiles to prevent self-assigned privileges.
 create table public.account_roles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   role text not null default 'household' check (role in ('household', 'admin'))
@@ -42,7 +42,7 @@ create table public.usage_records (
   updated_at timestamptz not null default now(),
   constraint usage_dates check (start_date >= date '0001-01-01' and end_date <= date '9999-12-31' and end_date >= start_date),
   constraint usage_amount check (amount >= 0 and amount <= case resource when 'water' then 10000000 else 100000 end),
-  -- 首尾日期都包含；排斥约束防止同家庭同资源重叠，包括并发写入。
+  -- Dates are inclusive; the exclusion constraint prevents overlapping periods for the same household and resource, including concurrent writes.
   constraint usage_no_overlap exclude using gist
     (user_id with =, resource with =, daterange(start_date, end_date, '[]') with &&)
 );
@@ -109,7 +109,7 @@ create trigger household_updated before update on public.household_profiles for 
 create trigger usage_updated before update on public.usage_records for each row execute function public.set_updated_at();
 create trigger goals_updated before update on public.goals for each row execute function public.set_updated_at();
 
--- 不信任客户端 metadata 中的角色及隐私选项。
+-- Do not trust roles or privacy preferences supplied in client metadata.
 create function public.initialize_household() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -122,7 +122,7 @@ create trigger scsa_auth_user_created after insert on auth.users for each row ex
 insert into public.household_profiles(user_id) select id from auth.users;
 insert into public.account_roles(user_id) select id from auth.users;
 
--- 清除项目可能配置的默认授权，再逐项开放。
+-- Revoke any default project privileges, then grant access explicitly.
 revoke all on public.resources, public.household_profiles, public.account_roles,
   public.usage_records, public.goals, public.challenges, public.challenge_memberships,
   public.badges, public.user_badges from public, anon, authenticated;
@@ -172,5 +172,5 @@ create policy memberships_join on public.challenge_memberships for insert to aut
     select 1 from public.challenges c where c.id = challenge_id and c.is_active
   ));
 create policy memberships_leave on public.challenge_memberships for delete to authenticated using (user_id = (select auth.uid()));
--- 不建立绕过 RLS 的视图。admin 角色不自动获得其他家庭原始数据权限。
+-- Do not create views that bypass RLS. The admin role does not automatically gain access to other households' raw data.
 commit;

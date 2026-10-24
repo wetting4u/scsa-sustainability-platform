@@ -6,6 +6,7 @@ export type Challenge = {
   description: string;
   resource: Resource;
   target: number;
+  rewardPoints: number | null;
   start: string;
   end: string;
   tag: string;
@@ -15,7 +16,4 @@ export type Challenge = {
   duration: string;
 };
 
-export type ChallengeInput = Omit<
-  Challenge,
-  "id" | "duration"
->;
+export type ChallengeInput = Omit<Challenge, "id" | "duration">;

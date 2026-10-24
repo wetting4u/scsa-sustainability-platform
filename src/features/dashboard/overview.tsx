@@ -12,119 +12,36 @@ import {
 import { recordsApi } from "@/features/records/client";
 
 import styles from "./overview.module.css";
-import { createClient } from "@/lib/supabase/client";
+import { GoalBadges } from "@/features/badges/goal-badges";
 
-type EarnedBadge = {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  awardedAt: string;
-};
-
-type BadgeQueryRow = {
-  awarded_at: string;
-  badge: {
-    id: string;
-    name: string;
-    description: string;
-    icon: string;
-  } | null;
-};
 export function Overview() {
   const [records, setRecords] = useState<UsageRecord[]>([]);
   const [resource, setResource] = useState<Resource>("electricity");
   const [loading, setLoading] = useState(true);
   const [recordsError, setRecordsError] = useState("");
 
-  const [badges, setBadges] = useState<EarnedBadge[]>([]);
-  const [badgesLoading, setBadgesLoading] = useState(true);
-  const [badgesError, setBadgesError] = useState("");
-
-useEffect(() => {
-  async function loadRecords() {
-    try {
-      const { data } = await recordsApi.list();
-      setRecords(data);
-      setRecordsError("");
-    } catch (error) {
-      console.error(error);
-      setRecords([]);
-      setRecordsError("Unable to load your resource records.");
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    async function loadRecords() {
+      try {
+        const { data } = await recordsApi.list();
+        setRecords(data);
+        setRecordsError("");
+      } catch (error) {
+        console.error(error);
+        setRecords([]);
+        setRecordsError("Unable to load your resource records.");
+      } finally {
+        setLoading(false);
+      }
     }
 
     void loadRecords();
   }, []);
 
-  useEffect(() => {
-    async function loadBadges() {
-      const supabase = createClient();
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setBadgesLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("user_badges")
-        .select(
-          `
-        awarded_at,
-        badge:badges (
-          id,
-          name,
-          description,
-          icon
-        )
-      `,
-        )
-        .eq("user_id", user.id)
-        .order("awarded_at", { ascending: false });
-
-      if (error) {
-        console.error(error);
-        setBadgesError("Unable to load your badges.");
-        setBadgesLoading(false);
-        return;
-      }
-
-      const rows = (data ?? []) as unknown as BadgeQueryRow[];
-      const earnedBadges: EarnedBadge[] = [];
-
-      for (const row of rows) {
-        if (!row.badge) continue;
-
-        earnedBadges.push({
-          id: row.badge.id,
-          name: row.badge.name,
-          description: row.badge.description,
-          icon: row.badge.icon,
-          awardedAt: row.awarded_at,
-        });
-      }
-
-      setBadges(earnedBadges);
-      setBadgesLoading(false);
-    }
-
-    void loadBadges();
-  }, []);
-
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
-  const lastDayOfMonth = new Date(
-    currentYear,
-    currentMonth + 1,
-    0,
-  ).getDate();
+  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
   const monthLabel = now.toLocaleString("en-AU", {
     month: "short",
@@ -156,15 +73,6 @@ useEffect(() => {
     ),
   );
   const max = Math.max(...values, 1);
-  const latestBadge = badges[0];
-  const badgeIcon =
-  latestBadge?.icon === "drop" ||
-  latestBadge?.icon === "bolt" ||
-  latestBadge?.icon === "sprout" ||
-  latestBadge?.icon === "leaf" ||
-  latestBadge?.icon === "award"
-    ? latestBadge.icon
-    : "award";
   return (
     <>
       <PageHeading
@@ -242,29 +150,29 @@ useEffect(() => {
             </div>
             <div className="stat-value">
               {records.some(
-              (r) =>
-                r.resource === key &&
-                r.start >= currentMonthStart &&
-                r.end <= currentMonthEnd,
-            )
-              ? totalFor(
-                  records,
-                  key,
-                  currentMonthStart,
-                  currentMonthEnd,
-                ).toLocaleString()
-              : "—"}{" "}
+                (r) =>
+                  r.resource === key &&
+                  r.start >= currentMonthStart &&
+                  r.end <= currentMonthEnd,
+              )
+                ? totalFor(
+                    records,
+                    key,
+                    currentMonthStart,
+                    currentMonthEnd,
+                  ).toLocaleString()
+                : "—"}{" "}
               <small>{resources[key].unit}</small>
             </div>
             <p>Recorded usage this month</p>
             <div className="stat-foot">
               {
                 records.filter(
-                (r) =>
-                  r.resource === key &&
-                  r.start >= currentMonthStart &&
-                  r.end <= currentMonthEnd,
-              ).length
+                  (r) =>
+                    r.resource === key &&
+                    r.start >= currentMonthStart &&
+                    r.end <= currentMonthEnd,
+                ).length
               }{" "}
               entries <span>Manual household records</span>
             </div>
@@ -315,43 +223,7 @@ useEffect(() => {
             week only. Missing data is not zero usage.
           </p>
         </section>
-        <section className="badge-card" aria-live="polite">
-          <span className="badge-medal">
-            <Icon name={badgeIcon} size={34} />
-          </span>
-
-          <div>
-            <div className="eyebrow">
-              {badgesLoading
-                ? "CHECKING YOUR PROGRESS"
-                : latestBadge
-                  ? "YOUR LATEST SMALL WIN"
-                  : "YOUR NEXT SMALL WIN"}
-            </div>
-
-            <h3>
-              {badgesLoading
-                ? "Loading your badges..."
-                : (latestBadge?.name ?? "Every journey starts somewhere")}
-            </h3>
-
-            <p>
-              {badgesError
-                ? badgesError
-                : badgesLoading
-                  ? "Looking for the achievements you have earned."
-                  : latestBadge
-                    ? `${latestBadge.description} · Earned ${new Date(
-                        latestBadge.awardedAt,
-                      ).toLocaleDateString("en-AU", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}`
-                    : "Complete activities to earn your first badge."}
-            </p>
-          </div>
-        </section>
+        <GoalBadges />
       </div>
     </>
   );

@@ -1,0 +1,115 @@
+.statHelp {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #526157;
+}
+.boards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  gap: 18px;
+}
+.board {
+  min-width: 0;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid var(--board-border);
+  background: var(--board-bg);
+}
+.electricity {
+  --board-bg: #fbf5e7;
+  --board-border: #e7d9ad;
+}
+.water {
+  --board-bg: #edf6f9;
+  --board-border: #ccdee5;
+}
+.waste {
+  --board-bg: #f0f5e9;
+  --board-border: #d5e0c7;
+}
+.board h3 {
+  margin: 0 0 16px;
+}
+.yourRank {
+  display: grid;
+  gap: 8px;
+  background: #ffffffdc;
+  border: 1px solid var(--board-border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 16px;
+  overflow-wrap: anywhere;
+}
+.yourRank > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.yourRank p {
+  font-size: 13px;
+  margin: 0;
+}
+.yourRank a {
+  text-decoration: underline;
+}
+.eyebrow {
+  color: #526157;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+.rankNumber {
+  font-size: 28px;
+  color: #22583e;
+}
+.ranking {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: #ffffffc9;
+}
+.myRow {
+  background: #e1efda;
+  border-color: #7e9e72;
+}
+.rank {
+  font-weight: 700;
+  font-size: 16px;
+  text-align: center;
+  color: #294b35;
+}
+.name {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.you {
+  display: inline-block;
+  margin-left: 6px;
+  border-radius: 4px;
+  padding: 2px 5px;
+  background: #285b40;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+}
+.points {
+  font-size: 16px;
+  text-align: right;
+}
+.points small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+}

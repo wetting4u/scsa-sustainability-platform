@@ -4,8 +4,11 @@ import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 
-// 本机 PostgreSQL 测试：模拟 Auth 的最小表/身份函数，不连接 Supabase。
-test("schema、数据约束与普通用户权限", async (t) => {
+// Initial-migration regression tests, not a model of the latest cloud schema.
+// Legacy seed dates and the nine-table count belong to this historical baseline.
+// Current reward, expired-join and leaderboard rules are tested in challenge-rewards-db.test.mjs.
+// These tests use local PostgreSQL with minimal Auth fixtures, never the cloud.
+test("initial schema baseline: constraints and household permissions", async (t) => {
   const db = new PGlite({ extensions: { btree_gist } });
   const alice = "10000000-0000-4000-8000-000000000001";
   const bob = "10000000-0000-4000-8000-000000000002";

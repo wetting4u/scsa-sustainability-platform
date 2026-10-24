@@ -1,0 +1,49 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+}
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  overflow-wrap: anywhere;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.lamp {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 10px;
+  border-radius: 50%;
+  color: #647169;
+  background: #eef0ed;
+}
+.green {
+  color: #66ef39;
+  background: #edffe5;
+  box-shadow: 0 0 14px #66ef3966;
+}
+.earned {
+  color: #24783d;
+}
+.red {
+  color: #a32929;
+  background: #fdecec;
+}
+.grey {
+  color: #647169;
+  background: #eef0ed;
+}
+.achievement {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.achievement svg {
+  flex-shrink: 0;
+}

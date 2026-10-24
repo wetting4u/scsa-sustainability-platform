@@ -92,6 +92,7 @@ export default function AdminChallengesPage() {
       description: String(formData.get("description") ?? "").trim(),
       resource: String(formData.get("resource") ?? "electricity") as Resource,
       target: Number(formData.get("target")),
+      rewardPoints: Number(formData.get("rewardPoints")),
       start: String(formData.get("start") ?? ""),
       end: String(formData.get("end") ?? ""),
       tag: String(formData.get("tag") ?? "").trim(),
@@ -287,6 +288,19 @@ export default function AdminChallengesPage() {
                 />
               </label>
 
+              <label>
+                Reward points
+                <input
+                  name="rewardPoints"
+                  type="number"
+                  min="0"
+                  max="1000000"
+                  step="1"
+                  required
+                  defaultValue={editing?.rewardPoints ?? ""}
+                />
+              </label>
+
               <PeriodPicker
                 scope="challenge"
                 existing={
@@ -394,6 +408,13 @@ export default function AdminChallengesPage() {
 
               <h2>{challenge.title}</h2>
               <p>{challenge.description}</p>
+              <p>
+                <strong>
+                  {challenge.rewardPoints === null
+                    ? "Points not configured"
+                    : `${challenge.rewardPoints} points`}
+                </strong>
+              </p>
 
               <p>
                 <strong>

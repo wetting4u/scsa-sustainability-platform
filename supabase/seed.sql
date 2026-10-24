@@ -1,5 +1,5 @@
--- 可选开发数据：与网页演示一致的 2026 年 9 月挑战。
--- 不创建 Auth 账号、密码、用量或家庭资料，也不打开隐私开关。
+-- Optional development data: September 2026 challenges matching the web demo.
+-- Does not create Auth accounts, passwords, usage records or household profiles, or enable sharing.
 begin;
 insert into public.challenges (id, title, description, resource, target, start_date, end_date, tag, icon)
 values

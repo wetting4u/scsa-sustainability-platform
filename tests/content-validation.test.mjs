@@ -74,6 +74,7 @@ const goal = {
 };
 const challenge = {
   ...goal,
+  rewardPoints: 50,
   description: "Save water together",
   tag: "WATER SAVERS",
   icon: "drop",

@@ -1,0 +1,136 @@
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #edf4e8;
+  color: #214f37;
+  font-size: 14px;
+}
+.summary strong {
+  font-size: 18px;
+}
+.summary span {
+  flex-basis: 100%;
+}
+
+.progress {
+  padding: 16px;
+  margin-bottom: 18px;
+  border: 1px solid #d9e2d5;
+  border-radius: 8px;
+  background: #fafcf8;
+}
+.progressStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.green {
+  color: #24783d;
+}
+.red {
+  color: #a32929;
+}
+.grey {
+  color: #58665e;
+}
+.amount {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.meter {
+  display: block;
+  width: 100%;
+  height: 10px;
+  accent-color: currentColor;
+}
+.help {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 8px 0;
+  color: #526157;
+}
+.coverage {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 12px 0 0;
+}
+
+.exploreHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 28px 0 18px;
+}
+.exploreTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.exploreTitle h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.refreshButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #d5e0ce;
+  border-radius: 50%;
+  background: #f1f6ec;
+  color: #285b40;
+  cursor: pointer;
+}
+.refreshButton:hover:not(:disabled) {
+  background: #e1ecd8;
+  border-color: #7e9e72;
+}
+.refreshButton:focus-visible {
+  outline: 2px solid #285b40;
+  outline-offset: 3px;
+}
+.refreshButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.challengeCount {
+  color: #526157;
+  font-size: 12px;
+}
+.refreshing {
+  animation: refreshSpin 1s linear infinite;
+}
+@keyframes refreshSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 600px) {
+  .exploreHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .exploreTitle {
+    width: 100%;
+  }
+  .exploreTitle h2 {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .refreshing {
+    animation: none;
+  }
+}

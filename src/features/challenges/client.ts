@@ -59,6 +59,15 @@ async function request<T>(
 }
 
 export const challengesApi = {
+  rewards: () =>
+    request<{
+      data: { challenge_id: string; points: number; awarded_at: string }[];
+    }>("/api/challenges/rewards", "GET"),
+  claim: (challengeId: string) =>
+    request<{ data: { status: string; points: number } }>(
+      `/api/challenges/${encodeURIComponent(challengeId)}/reward`,
+      "POST",
+    ),
   list: () => request<{ data: Challenge[] }>("/api/challenges", "GET"),
 
   memberships: () =>
